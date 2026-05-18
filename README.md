@@ -1,40 +1,78 @@
-# scripts
+# 🛠️ DevOps Scripts — Phenome Networks
 
-Personal scripts repository organized by language and purpose.
+A collection of DevOps and infrastructure scripts organized by format and category.
 
-## Folder Structure
+---
 
-| Folder | Contents |
-|--------|----------|
-| `bash/` | Bash / Shell scripts (.sh) |
-| `python/` | Python scripts (.py) |
-| `powershell/` | PowerShell scripts (.ps1) |
-| `docker/` | Dockerfiles & Docker Compose configs |
-| `ansible/` | Ansible playbooks & roles |
-| `terraform/` | Terraform IaC configurations |
-| `utils/` | General-purpose utility scripts |
+## 📁 Repository Structure
 
-## Naming Conventions
+```
+scripts/
+├── bash/
+│   ├── aws/
+│   │   ├── rds/           — RDS slow query logs, MySQL backups
+│   │   └── s3/            — S3 copy and policy scan scripts
+│   ├── graphviz/          — Graphviz install and removal
+│   ├── local-storage/     — Unity installation for local storage environments
+│   ├── mysql/             — Advanced universal MySQL backup
+│   ├── perl/              — Perl environment setup and diagnostics
+│   ├── python-server/     — Waitress server watchdog and setup
+│   └── unity-deployment/  — Deploy Unity (PhenomeOne) revisions
+│
+├── customers/
+│   ├── basf/              — BASF DEV environment
+│   ├── danzinger/         — Danzinger 2024 environment
+│   ├── ews/               — EWS Mumbai environment
+│   ├── enza-zaden/        — Enza Zaden environment
+│   └── gdm/               — GDM environment
+│
+├── python/
+│   └── aws/
+│       ├── cloudtrail/    — IAM user activity investigation
+│       ├── s3/            — S3 audit and management tools
+│       └── waf/           — WAF IP blocking and ACL cloning
+│
+├── powershell/
+│   └── aws/
+│       └── ssm/           — Copy SSM Documents between regions
+│
+└── utils/
+    └── aws/
+        └── ssm/           — SSM Document definitions + CMD utility
+```
 
-- **Bash:** `<purpose>_<description>.sh` — e.g. `backup_home_dir.sh`
-- - **Python:** `<purpose>_<description>.py` — e.g. `parse_logs.py`
-  - - **PowerShell:** `<Verb>-<Description>.ps1` — e.g. `Get-DiskReport.ps1`
-    - - **Docker:** Group by project name in subfolders
-      - - **Ansible:** `<action>_<target>.yml` — e.g. `install_docker.yml`
-        - - **Terraform:** Group by cloud provider, then project
-         
-          - ## How to Contribute / Add a Script
-         
-          - 1. Place the script in the correct folder based on its language or purpose
-            2. 2. Follow the naming convention for that folder
-               3. 3. Add a short comment header at the top of every script explaining what it does
-                  4. 4. Commit with a clear message: `add: backup script for /home directory`
-                    
-                     5. ## Commit Message Convention
-                    
-                     6. Use short prefixes to keep history clean:
-                     7. - `add:` — new script added
-                        - - `fix:` — bug fix in existing script
-                          - - `update:` — improvement or change
-                            - - `remove:` — deleted an old script
-                              - - `docs:` — README or documentation change
+---
+
+## ⚡ Quick Reference
+
+| Script | What it does |
+|--------|-------------|
+| `bash/mysql/mysql_backup_universal.sh` | Production MySQL backup with full validation |
+| `bash/unity-deployment/revision_deployment-job.sh` | Deploy Unity Job Server revision |
+| `bash/unity-deployment/revision_deployment-web.sh` | Deploy Unity Web Server revision |
+| `bash/unity-deployment/web.sh` | Full web server installation from scratch |
+| `bash/local-storage/job_local_storage.sh` | Job Server install — local storage environment |
+| `bash/local-storage/web_local_storage.sh` | Web Server install — local storage environment |
+| `python/aws/s3/s3_public_access_audit.py` | Audit S3 Block Public Access settings |
+| `python/aws/waf/IP-Check-Script.py` | Check IPs against AbuseIPDB |
+| `python/aws/waf/HOSTILE-IPS-BLOCK.py` | Auto-block hostile IPs in AWS WAF |
+| `python/aws/waf/clone_waf_acl.py` | Clone WAF WebACL between regions |
+| `python/aws/cloudtrail/iam_user_investigator.py` | Investigate IAM user activity |
+| `powershell/aws/ssm/Copy-SSMDocuments-YAML.ps1` | Copy SSM Documents between regions |
+
+---
+
+## 🔐 Security
+
+- No credentials are hardcoded — all sensitive values are prompted at runtime.
+- AWS access uses IAM roles where possible.
+- See each folder's `README.md` for specific requirements.
+
+---
+
+## ✅ Requirements
+
+- **AWS CLI** configured (`aws configure` or IAM role attached to the instance)
+- **Python 3.8+** with `boto3` for Python scripts
+- **PowerShell 5+** with AWS CLI for PowerShell scripts
+- **MySQL client** for backup scripts

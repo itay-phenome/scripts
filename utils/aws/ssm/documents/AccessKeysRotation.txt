@@ -1,0 +1,93 @@
+schemaVersion: '2.2'
+description: Blind-swap old→new AWS keys (any format), regenerate JSON, verify only where old keys existed.
+parameters:
+  OldAccessKeyId:
+    type: String
+    description: "(Required) Existing AWS Access Key ID to replace"
+  OldSecretAccessKey:
+    type: String
+    description: "(Required) Existing AWS Secret Access Key to replace"
+  NewAccessKeyId:
+    type: String
+    description: "(Required) New AWS Access Key ID"
+  NewSecretAccessKey:
+    type: String
+    description: "(Required) New AWS Secret Access Key"
+mainSteps:
+  - name: rotateAndVerify
+    action: aws:runShellScript
+    inputs:
+      timeoutSeconds: 900
+      runCommand:
+        - "#!/bin/bash"
+        - "set -euo pipefail"
+        - |
+          # Capture parameters
+          OldAccessKeyId='{{OldAccessKeyId}}'
+          OldSecretAccessKey='{{OldSecretAccessKey}}'
+          NewAccessKeyId='{{NewAccessKeyId}}'
+          NewSecretAccessKey='{{NewSecretAccessKey}}'
+
+          FILES=(
+            /root/.aws/credentials
+            /home/ubuntu/files/webapp.conf
+            /opt/phn/unity/WebApp/webapp.conf
+            /srv/vhosts/unity/webapp.conf
+            /home/ubuntu/files/job_server.conf
+            /opt/phn/unity/JobServer/job_server.conf
+            /opt/phn/unity/Tests/Server/lib/PHN/JobServer/job_server.conf
+          )
+
+          echo "⟳ Locating files with the old keys…"
+          declare -A hadOld
+          for F in "${FILES[@]}"; do
+            if [ -f "$F" ] && (grep -qF "$OldAccessKeyId" "$F" || grep -qF "$OldSecretAccessKey" "$F"); then
+              hadOld["$F"]=1
+            fi
+          done
+
+          echo "🔄 Performing blind swap via Perl…"
+          for F in "${FILES[@]}"; do
+            if [ -f "$F" ]; then
+              echo "→ $F"
+              perl -pi -e '
+                s/\Q'"$OldAccessKeyId"'\E/'"$NewAccessKeyId"'/g;
+                s/\Q'"$OldSecretAccessKey"'\E/'"$NewSecretAccessKey"'/g;
+              ' "$F"
+            else
+              echo "⚠️  $F not found—skipping."
+            fi
+          done
+
+          echo "🏃‍♂️ Running conversion script…"
+          if ! perl /opt/phn/unity/WebApp/script/convert_webapp_conf_to_json.pl; then
+            echo "❌ Conversion failed." >&2
+            exit 1
+          fi
+
+          echo "🔍 Verifying results…"
+          ERRORS=0
+          for F in "${FILES[@]}"; do
+            [ -f "$F" ] || continue
+
+            # 1) No old creds anywhere
+            if grep -qF "$OldAccessKeyId" "$F" || grep -qF "$OldSecretAccessKey" "$F"; then
+              echo "❌ Old credentials still present in $F"
+              ((ERRORS++))
+            fi
+
+            # 2) If it originally had old creds, ensure new ones are now there
+            if [ -n "${hadOld["$F"]+1}" ]; then
+              if ! grep -qF "$NewAccessKeyId" "$F" || ! grep -qF "$NewSecretAccessKey" "$F"; then
+                echo "❌ New credentials missing in $F (old keys were present)"
+                ((ERRORS++))
+              fi
+            fi
+          done
+
+          if [ "$ERRORS" -ne 0 ]; then
+            echo "🚨 Verification failed: $ERRORS issue(s) detected." >&2
+            exit 1
+          fi
+
+          echo "✅ All verified—rotation complete."

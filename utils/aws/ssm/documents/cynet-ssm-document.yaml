@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template to create an SSM Document for Cynet installation check and deployment'
+
+Resources:
+  CynetInstallDocument:
+    Type: 'AWS::SSM::Document'
+    Properties:
+      Name: 'Install-Cynet-If-Missing'
+      DocumentType: 'Command'
+      Content:
+        schemaVersion: '2.2'
+        description: 'Checks if Cynet is running and installs it if needed'
+        parameters: {}
+        mainSteps:
+          - action: 'aws:runShellScript'
+            name: 'installCynetIfMissing'
+            inputs:
+              runCommand:
+                - '#!/bin/bash'
+                - '# Check if Cynet is running'
+                - 'if ! ps aux | grep -q "[s]lb.cynet.com"; then'
+                - '    echo "Cynet not found, installing..."'
+                - '    '
+                - '    # Create directory and download files from S3'
+                - '    sudo mkdir -p /home/ubuntu/files/cynet'
+                - '    sudo aws s3 cp s3://phenome-devops-files/LINUX_CynetEPSInstaller /home/ubuntu/files/cynet --recursive'
+                - '    '
+                - '    # Navigate to directory, set permissions and install'
+                - '    cd /home/ubuntu/files/cynet'
+                - '    sudo chmod +x *.sh'
+                - '    sudo ./cy_easyinstall.sh'
+                - '    '
+                - '    # Verify installation'
+                - '    if ps aux | grep -q "[s]lb.cynet.com"; then'
+                - '        echo "Cynet successfully installed and running"'
+                - '    else'
+                - '        echo "Cynet installation may have failed, please check logs"'
+                - '    fi'
+                - 'else'
+                - '    echo "Cynet is already running"'
+                - 'fi'
+
+Outputs:
+  DocumentName:
+    Description: "Name of the created SSM Document"
+    Value: !Ref CynetInstallDocument

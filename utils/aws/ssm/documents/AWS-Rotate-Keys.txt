@@ -1,0 +1,75 @@
+schemaVersion: '2.2'
+description: Rotate AWS credentials (old→new) in config files and regenerate JSON.
+parameters:
+  OldAccessKeyId:
+    type: String
+    description: "(Required) Existing AWS Access Key ID to replace"
+  OldSecretAccessKey:
+    type: String
+    description: "(Required) Existing AWS Secret Access Key to replace"
+  NewAccessKeyId:
+    type: String
+    description: "(Required) New AWS Access Key ID"
+  NewSecretAccessKey:
+    type: String
+    description: "(Required) New AWS Secret Access Key"
+mainSteps:
+  - name: rotateCredentials
+    action: aws:runShellScript
+    inputs:
+      timeoutSeconds: 600
+      runCommand:
+        - |
+          set -euo pipefail
+
+          FILES=(
+            /root/.aws/credentials
+            /home/ubuntu/files/webapp.conf
+            /opt/phn/unity/WebApp/webapp.conf
+            /srv/vhosts/unity/webapp.conf
+            /home/ubuntu/files/job_server.conf
+            /opt/phn/unity/JobServer/job_server.conf
+            /opt/phn/unity/Tests/Server/lib/PHN/JobServer/job_server.conf
+          )
+
+          echo "⟳ Starting credential rotation (old→new)..."
+
+          for F in "${FILES[@]}"; do
+            if [ -f "$F" ]; then
+              echo "→ Processing $F"
+
+              # Replace aws_access_key_id if it matches OLD, else append NEW
+              if grep -qE "^\s*aws_access_key_id\s*=\s*${OldAccessKeyId}\b" "$F"; then
+                sed -i -E \
+                  "s|^\s*aws_access_key_id\s*=\s*${OldAccessKeyId}\b|aws_access_key_id = ${NewAccessKeyId}|g" \
+                  "$F"
+              else
+                # remove any orphan lines for the old ID (safety) then append new
+                sed -i -E "/^\s*aws_access_key_id\s*=\s*${OldAccessKeyId}\b/d" "$F"
+                echo "aws_access_key_id = ${NewAccessKeyId}" >> "$F"
+              fi
+
+              # Same for aws_secret_access_key
+              if grep -qE "^\s*aws_secret_access_key\s*=\s*${OldSecretAccessKey}\b" "$F"; then
+                sed -i -E \
+                  "s|^\s*aws_secret_access_key\s*=\s*${OldSecretAccessKey}\b|aws_secret_access_key = ${NewSecretAccessKey}|g" \
+                  "$F"
+              else
+                sed -i -E "/^\s*aws_secret_access_key\s*=\s*${OldSecretAccessKey}\b/d" "$F"
+                echo "aws_secret_access_key = ${NewSecretAccessKey}" >> "$F"
+              fi
+
+            else
+              echo "⚠️  $F not found — skipping."
+            fi
+          done
+
+          echo "🏃‍♂️ Running conversion script..."
+          if perl /opt/phn/unity/WebApp/script/convert_webapp_conf_to_json.pl; then
+            echo "✅ Conversion succeeded."
+          else
+            echo "❌ Conversion failed." >&2
+            exit 1
+          fi
+
+          echo "🎉 Credential rotation complete."

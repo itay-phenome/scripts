@@ -1,0 +1,114 @@
+schemaVersion: '2.2'
+description: deploy unity revision to web servers
+
+parameters:
+  revisionNumber:
+    type: String
+    description: the RXXXXX suffix (e.g. "18926" for unity.R18926)
+    default: REPLACE_WITH_REVISION
+
+mainSteps:
+
+  - name: installDependencies
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 60
+      runCommand:
+        - '#!/bin/bash'
+        - 'set -e'
+        - 'export DEBIAN_FRONTEND=noninteractive'
+        - ''
+        - 'if command -v yum &> /dev/null; then'
+        - '  yum install -y awscli perl python3 python3-venv'
+        - 'elif command -v apt-get &> /dev/null; then'
+        - '  apt-get update'
+        - '  apt-get install -y awscli perl python3 python3-venv'
+        - 'else'
+        - '  echo "No supported package manager found; skipping installs"'
+        - 'fi'
+
+  - name: downloadFiles
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 60
+      runCommand:
+        - '#!/bin/bash'
+        - 'set -e'
+        - 'export AWS_PROFILE=phn'
+        - 'cd /home/ubuntu/unity-tarballs/'
+        - 'echo "downloading unity.R{{revisionNumber}} files..."'
+        - '/usr/local/bin/aws s3 cp s3://phn-p2g-dist/unity.R{{revisionNumber}}.tar.gz.md5 .'
+        - '/usr/local/bin/aws s3 cp s3://phn-p2g-dist/unity.R{{revisionNumber}}.tar.gz .'
+        - 'echo "download complete"'
+
+  - name: setPermissions
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 60
+      runCommand:
+        - '#!/bin/bash'
+        - 'set -e'
+        - 'cd /home/ubuntu/unity-tarballs/'
+        - 'echo "setting ownership & permissions..."'
+        - 'chown 0:0 unity.R{{revisionNumber}}.*'
+        - 'chmod 755 unity.R{{revisionNumber}}.*'
+        - 'echo "permissions set"'
+
+  - name: deployWebRevision
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 60
+      runCommand:
+        - '#!/bin/bash'
+        - 'set -e'
+        - 'cd /home/ubuntu'
+        - 'echo "deploying web revision {{revisionNumber}}..."'
+        - './update-web-server-application.sh {{revisionNumber}}'
+        - 'echo "deployment complete"'
+
+  - name: convertWebappConfig
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 60
+      runCommand:
+        - '#!/bin/bash'
+        - 'set -e'
+        - 'echo "converting webapp configuration to JSON..."'
+        - 'perl /opt/phn/unity/WebApp/script/convert_webapp_conf_to_json.pl || { echo "Conversion failed"; exit 1; }'
+        - 'echo "conversion complete"'
+
+  - name: startWaitressService
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 60
+      runCommand:
+        - '#!/bin/bash'
+        - 'set -e'
+        - 'echo "Checking for running Waitress service..."'
+        - 'if pgrep -f waitress_server.py > /dev/null; then'
+        - '  echo "Service is running, stopping now..."'
+        - '  pkill -f waitress_server.py'
+        - 'else'
+        - '  echo "Service not running."'
+        - 'fi'
+        - ''
+        - 'echo "Copying custom config.json..."'
+        - 'cp /home/ubuntu/files/config.json /opt/phn/unity/WebApp/lib/PHN/Python/config.json'
+        - ''
+        - 'echo "Starting Waitress service..."'
+        - 'cd /opt/phn/unity/WebApp/lib/PHN/Python/'
+        - 'rm -rf .venv'
+        - '/usr/bin/python3.12 -m venv .venv'
+        - 'source .venv/bin/activate'
+        - 'pip install -r requirements.txt'
+        - 'pip install waitress'
+        - 'perl /opt/phn/unity/WebApp/script/convert_webapp_conf_to_json.pl'
+        - 'echo "Launching watchdog in background..."'
+        - 'nohup setsid /bin/bash /opt/phn/unity/UtilityScripts/waitress-server-watchdog.sh </dev/null >/var/log/SSM/web-deploy-watchdog.log 2>&1 &'
+        - 'echo "Waitress service & watchdog started"'

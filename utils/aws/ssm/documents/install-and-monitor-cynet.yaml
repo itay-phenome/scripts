@@ -1,0 +1,36 @@
+schemaVersion: '2.2'
+description: |
+  check if slb.cynet.com is running; install if missing; publish status to CloudWatch
+parameters: {}
+mainSteps:
+  - name: checkAndInstall
+    action: aws:runShellScript
+    inputs:
+      runCommand:
+        - '#!/bin/bash'
+        - 'SERVICE=slb.cynet.com'
+        - 'STATUS=0'
+        - 'if pgrep -f "$SERVICE" >/dev/null; then'
+        - '  echo "service $SERVICE already running"'
+        - '  STATUS=1'
+        - 'else'
+        - '  echo "service $SERVICE not found, installing…"'
+        - '  sudo mkdir -p /home/ubuntu/files/cynet'
+        - '  sudo aws s3 cp s3://phenome-devops-files/LINUX_CynetEPSInstaller /home/ubuntu/files/cynet --recursive'
+        - '  cd /home/ubuntu/files/cynet'
+        - '  sudo chmod +x *.sh && sudo ./cy_easyinstall.sh'
+        - '  if pgrep -f "$SERVICE" >/dev/null; then STATUS=1; fi'
+        - 'fi'
+        - 'echo "{\"service\": \"$SERVICE\", \"status\": $STATUS}"'
+  - name: publishMetric
+    action: aws:runShellScript
+    inputs:
+      runCommand:
+        - '#!/bin/bash'
+        - 'METRIC_NAMESPACE="Custom/ServiceChecks"'
+        - 'SERVICE="slb.cynet.com"'
+        - 'aws cloudwatch put-metric-data \\'
+        - '  --namespace "$METRIC_NAMESPACE" \\'
+        - '  --metric-name ServiceRunning \\'
+        - '  --dimensions ServiceName="$SERVICE" \\'
+        - '  --value $STATUS'

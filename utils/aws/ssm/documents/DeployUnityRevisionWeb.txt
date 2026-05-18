@@ -1,0 +1,64 @@
+schemaVersion: '2.2'
+description: deploy unity revision to web servers
+parameters:
+  revisionNumber:
+    type: String
+    description: the RXXXXX suffix (e.g. "18926" for unity.R18926)
+    default: "REPLACE_WITH_REVISION"
+mainSteps:
+  - name: downloadFiles
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 600
+      runCommand:
+        - |-
+            #!/bin/bash
+            set -e
+            cd /home/ubuntu/unity-tarballs/
+            echo "downloading unity.R{{revisionNumber}} files..."
+            /usr/local/bin/aws s3 cp s3://phn-p2g-dist/unity.R{{revisionNumber}}.tar.gz.md5 .
+            /usr/local/bin/aws s3 cp s3://phn-p2g-dist/unity.R{{revisionNumber}}.tar.gz .
+            echo "download complete"
+  - name: setPermissions
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 300
+      runCommand:
+        - |-
+            #!/bin/bash
+            set -e
+            cd /home/ubuntu/unity-tarballs/
+            echo "setting ownership & permissions..."
+            chown 0:0 unity.R{{revisionNumber}}.*
+            chmod 755 unity.R{{revisionNumber}}.*
+            echo "permissions set"
+  - name: deployWebRevision
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 600
+      runCommand:
+        - |-
+            #!/bin/bash
+            set -e
+            cd /home/ubuntu
+            echo "deploying web revision {{revisionNumber}}..."
+            ./update-web-server-application.sh {{revisionNumber}}
+            echo "deployment complete"
+  - name: convertWebappConfig
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 300
+      runCommand:
+        - |-
+            #!/bin/bash
+            set -e
+            echo "converting webapp configuration to JSON..."
+            if ! perl /opt/phn/unity/WebApp/script/convert_webapp_conf_to_json.pl; then
+              echo "Failed to convert webapp config"
+              exit 1
+            fi
+            echo "conversion complete"

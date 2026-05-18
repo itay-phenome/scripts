@@ -1,0 +1,108 @@
+schemaVersion: '2.2'
+description: deploy unity revision to job servers
+parameters:
+  revisionNumber:
+    type: String
+    description: the RXXXXX suffix (e.g. "18926" for unity.R18926)
+    default: "REPLACE_WITH_REVISION"
+mainSteps:
+  - name: downloadFiles
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 600
+      runCommand:
+        - |-
+            #!/bin/bash
+            set -e
+            # Determine aws CLI location
+            if [ -x /usr/local/bin/aws ]; then
+              AWS_CLI=/usr/local/bin/aws
+            elif command -v aws &> /dev/null; then
+              AWS_CLI=aws
+            else
+              echo "ERROR: aws CLI not found" >&2
+              exit 1
+            fi
+
+            cd /home/ubuntu/unity-tarballs/
+            echo "downloading unity.R{{revisionNumber}} files..."
+            $AWS_CLI s3 cp s3://phn-p2g-dist/unity.R{{revisionNumber}}.tar.gz.md5 .
+            $AWS_CLI s3 cp s3://phn-p2g-dist/unity.R{{revisionNumber}}.tar.gz .
+            echo "download complete"
+
+  - name: setPermissions
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 300
+      runCommand:
+        - |-
+            #!/bin/bash
+            set -e
+            cd /home/ubuntu/unity-tarballs/
+            echo "setting ownership & permissions..."
+            chown 0:0 unity.R{{revisionNumber}}.*
+            chmod 755 unity.R{{revisionNumber}}.*
+            echo "permissions set"
+
+  - name: deployRevision
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 600
+      runCommand:
+        - |-
+            #!/bin/bash
+            set -e
+            cd /home/ubuntu
+            echo "deploying revision {{revisionNumber}}..."
+            ./update-job-server-application.sh {{revisionNumber}}
+            echo "deployment complete"
+
+  - name: applyDatabaseChanges
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 1200
+      runCommand:
+        - |-
+            #!/bin/bash
+            set -e
+            cd /opt/phn/unity
+            echo "applying SQL scripts..."
+            for f in DB/mustAddToDB/*.sql; do
+              echo "running $f"
+              mysql --defaults-file=/root/.my.cnf pheno20 < "$f"
+            done
+            echo "SQL scripts applied"
+
+  - name: runLiquibase
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 6000
+      runCommand:
+        - |-
+            #!/bin/bash
+            set -e
+            cd /opt/phn/unity/DB/
+            echo "running liquibase updates..."
+            cp /home/ubuntu/files/liquibase.properties .
+            /opt/liquibase/liquibase --defaultsFile=liquibase.properties --changeLogFile=changelog.sql update
+            echo "liquibase complete"
+
+  - name: restartJobServer
+    action: aws:runShellScript
+    inputs:
+      runAs: root
+      timeoutSeconds: 300
+      runCommand:
+        - |-
+            #!/bin/bash
+            set -e
+            echo "stopping existing job server..."
+            pkill -f job_server.pl || true
+            echo "launching job server..."
+            nohup setsid /usr/bin/perl /opt/phn/unity/JobServer/bin/job_server.pl </dev/null >/var/log/SSM/ssm-deploy.log 2>&1 &
+            echo "job server started"
