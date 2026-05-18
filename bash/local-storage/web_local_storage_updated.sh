@@ -779,7 +779,7 @@ install_elastic_agent(){
     cd elastic-agent-*-linux-x86_64
     
     # Install with your enrollment token (you'll need to update this)
-    ./elastic-agent install --non-interactive --url=https://eb7afb93d5084ef79484bb19b9a20ea2.fleet.eu-west-1.aws.found.io:443 --enrollment-token=V0tvaWlvb0JjTVRMc19vMkRvU3U6RVNFYzRNWVRUMldPanctM29SbDFPZw==
+    ./elastic-agent install --non-interactive --url=https://eb7afb93d5084ef79484bb19b9a20ea2.fleet.eu-west-1.aws.found.io:443 --enrollment-token=YOUR_SECRET_HERE
 
 }
 

@@ -194,7 +194,7 @@ region ${BUCKET_REGION}
 
 <S3>
     access_key  YOUR_AWS_ACCESS_KEY_HERE
-    secret_key  ZV1yRY+7fHcsP0sVriW6wCNP7BjXIz1xf/EtNHSp
+    secret_key  YOUR_AWS_SECRET_KEY_HERE
     auth_method V4
     region ${BUCKET_REGION}
 #    encryption  AES256
@@ -237,7 +237,7 @@ region ${BUCKET_REGION}
 
 <SQS>
     access_key YOUR_AWS_ACCESS_KEY_HERE
-    secret_key ZV1yRY+7fHcsP0sVriW6wCNP7BjXIz1xf/EtNHSp
+    secret_key YOUR_AWS_SECRET_KEY_HERE
 </SQS>
 
 <Queue>
@@ -285,7 +285,7 @@ region ${BUCKET_REGION}
 
 <S3>
     access_key  YOUR_AWS_ACCESS_KEY_HERE
-    secret_key  ZV1yRY+7fHcsP0sVriW6wCNP7BjXIz1xf/EtNHSp
+    secret_key  YOUR_AWS_SECRET_KEY_HERE
     auth_method V4
     region ${BUCKET_REGION}
 </S3>
@@ -327,7 +327,7 @@ region ${BUCKET_REGION}
 
 <SQS>
     access_key YOUR_AWS_ACCESS_KEY_HERE
-    secret_key ZV1yRY+7fHcsP0sVriW6wCNP7BjXIz1xf/EtNHSp
+    secret_key YOUR_AWS_SECRET_KEY_HERE
 </SQS>
 
 <Queue other>
@@ -620,7 +620,7 @@ ln -s /usr/local/bin/aws /bin/aws
 
 #This is key for regual AWS account - Phenome's AWS Main Account#
 export AWS_ACCESS_KEY_ID="YOUR_AWS_ACCESS_KEY_HERE"
-export AWS_SECRET_ACCESS_KEY="4Wv+3SaJP+5quvjpSx8+FmTxwp+5vO2Te0pMY5ZQ"
+export AWS_SECRET_ACCESS_KEY="YOUR_AWS_SECRET_KEY_HERE"
 
 aws s3 cp s3://phenome-devops-files/userdata/last.rds /home/ubuntu/ --region eu-west-1
 

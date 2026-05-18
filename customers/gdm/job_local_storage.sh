@@ -610,7 +610,7 @@ install_elastic_agent(){
     curl -L -O https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-8.9.2-linux-x86_64.tar.gz
     tar xzvf elastic-agent-8.9.2-linux-x86_64.tar.gz
     cd elastic-agent-8.9.2-linux-x86_64
-    ./elastic-agent install --non-interactive --url=https://eb7afb93d5084ef79484bb19b9a20ea2.fleet.eu-west-1.aws.found.io:443 --enrollment-token=YzZyS2tvb0JjTVRMc19vMi11a3Q6RU0tRGtoSlVRcHVUTG1qN1AtSzBqZw==
+    ./elastic-agent install --non-interactive --url=https://eb7afb93d5084ef79484bb19b9a20ea2.fleet.eu-west-1.aws.found.io:443 --enrollment-token=YOUR_SECRET_HERE
 
 }
 
@@ -626,7 +626,7 @@ ln -s /usr/local/bin/aws /bin/aws
 
 #This is key for regual AWS account#
 export AWS_ACCESS_KEY_ID="YOUR_AWS_ACCESS_KEY_HERE"
-export AWS_SECRET_ACCESS_KEY="C2HQLsihay3Y8DiqPfN644GDhu8IwqNiJzaHfnO1"
+export AWS_SECRET_ACCESS_KEY="YOUR_AWS_SECRET_KEY_HERE"
 
 export REVISION="20873"
 export MYSQL_HOST="10.200.32.21"
