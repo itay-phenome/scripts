@@ -19,6 +19,16 @@ import json, argparse, sys, os, re, time, csv, io
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Windows consoles often default to a legacy codepage (cp1252) that can't encode
+# the box-drawing / status glyphs this script prints — reconfigure to UTF-8 so
+# `python backup_checker.py` doesn't crash mid-run in a plain cmd.exe window.
+for _stream in (sys.stdout, sys.stderr):
+    if _stream is not None and hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
 # ── constants ─────────────────────────────────────────────────────────────────
 DATE_FORMAT        = "%Y-%m-%d"
 DEFAULT_CONFIG     = Path(__file__).parent / "backup_config.xlsx"
@@ -31,8 +41,20 @@ MAX_RETRIES        = 3
 RETRY_DELAY_SEC    = 5
 BUCKET_NAME_RE     = re.compile(r'^[a-z0-9][a-z0-9\-\.]{1,61}[a-z0-9]$')
 
+
+class CheckerAbort(BaseException):
+    """Raised by validation steps on a fatal, already-logged error.
+
+    Mirrors SystemExit by design (inherits BaseException, not Exception) so it
+    passes through the existing `except Exception` handlers unchanged — same
+    reason sys.exit() worked inside those blocks originally. CLI mode (main())
+    catches this and converts it to sys.exit(1). Programmatic callers (e.g. the
+    GUI) can catch it directly without the process exiting.
+    """
+    pass
+
 # ── ANSI colour helpers ───────────────────────────────────────────────────────
-USE_COLOR = sys.stdout.isatty() and os.name != "nt"
+USE_COLOR = sys.stdout is not None and sys.stdout.isatty() and os.name != "nt"
 def _c(code): return f"\033[{code}m" if USE_COLOR else ""
 R  = _c("0");  B  = _c("1");  GR = _c("32")
 YL = _c("33"); RD = _c("31"); DM = _c("2")
@@ -76,7 +98,7 @@ def validate_python():
         _warn("openpyxl not installed — required for .xlsx config (pip install openpyxl)")
     if errors:
         print(f"\n{RD}  Preflight failed. Fix the above and re-run.{R}\n")
-        sys.exit(1)
+        raise CheckerAbort("preflight failed")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -87,12 +109,12 @@ def validate_config_file(config_path: Path) -> dict:
 
     if not config_path.exists():
         _fail(f"Config file not found: {config_path}")
-        sys.exit(1)
+        raise CheckerAbort("config not found")
     _ok(f"File exists: {config_path.name}")
 
     if not os.access(config_path, os.R_OK):
         _fail(f"Config file is not readable: {config_path}")
-        sys.exit(1)
+        raise CheckerAbort("config not readable")
     _ok("File is readable")
 
     suffix = config_path.suffix.lower()
@@ -102,12 +124,12 @@ def validate_config_file(config_path: Path) -> dict:
         config = _parse_json(config_path)
     else:
         _fail(f"Unsupported format: {suffix}  (use .xlsx or .json)")
-        sys.exit(1)
+        raise CheckerAbort("unsupported config format")
 
     customers = config.get("customers", [])
     if not customers:
         _fail("No customers found in config file")
-        sys.exit(1)
+        raise CheckerAbort("no customers")
     _ok(f"{len(customers)} customers loaded")
 
     seen, warnings = {}, 0
@@ -164,22 +186,22 @@ def _parse_json(path):
         _ok("JSON parsed successfully")
         return data
     except json.JSONDecodeError as e:
-        _fail(f"JSON parse error: {e}"); sys.exit(1)
+        _fail(f"JSON parse error: {e}"); raise CheckerAbort("json parse error")
     except Exception as e:
-        _fail(f"Failed to read JSON: {e}"); sys.exit(1)
+        _fail(f"Failed to read JSON: {e}"); raise CheckerAbort("json read error")
 
 
 def _parse_xlsx(path):
     try:
         import openpyxl
     except ImportError:
-        _fail("openpyxl required for .xlsx — run: pip install openpyxl"); sys.exit(1)
+        _fail("openpyxl required for .xlsx — run: pip install openpyxl"); raise CheckerAbort("openpyxl missing")
     try:
         wb = openpyxl.load_workbook(path, data_only=True)
     except Exception as e:
-        _fail(f"Failed to open Excel file: {e}"); sys.exit(1)
+        _fail(f"Failed to open Excel file: {e}"); raise CheckerAbort("xlsx open error")
     if "Backup Config" not in wb.sheetnames:
-        _fail(f"Sheet 'Backup Config' not found. Sheets: {wb.sheetnames}"); sys.exit(1)
+        _fail(f"Sheet 'Backup Config' not found. Sheets: {wb.sheetnames}"); raise CheckerAbort("sheet not found")
     _ok("Excel opened — sheet 'Backup Config' found")
     ws = wb["Backup Config"]
     customers = []
@@ -210,7 +232,7 @@ def validate_output_paths(out_paths: list):
             out_dir.mkdir(parents=True, exist_ok=True)
             _ok(f"Created output directory: {out_dir}")
         except Exception as e:
-            _fail(f"Cannot create output directory {out_dir}: {e}"); sys.exit(1)
+            _fail(f"Cannot create output directory {out_dir}: {e}"); raise CheckerAbort("cannot create output dir")
     else:
         _ok(f"Output directory exists: {out_dir}")
 
@@ -219,7 +241,7 @@ def validate_output_paths(out_paths: list):
         test.write_text("ok"); test.unlink()
         _ok(f"Output directory is writable: {out_dir}")
     except Exception as e:
-        _fail(f"Cannot write to {out_dir}: {e}"); sys.exit(1)
+        _fail(f"Cannot write to {out_dir}: {e}"); raise CheckerAbort("output dir not writable")
 
     for p in out_paths:
         if p.exists():
@@ -236,7 +258,7 @@ def validate_aws_credentials(profile, region):
         import botocore
         from botocore.exceptions import NoCredentialsError, ClientError
     except ImportError:
-        _fail("boto3 not available"); sys.exit(1)
+        _fail("boto3 not available"); raise CheckerAbort("boto3 not available")
 
     # profile exists?
     if profile:
@@ -244,7 +266,7 @@ def validate_aws_credentials(profile, region):
             available = botocore.session.get_session().available_profiles
             if profile not in available:
                 _fail(f"AWS profile '{profile}' not found. Available: {available}")
-                sys.exit(1)
+                raise CheckerAbort("aws profile not found")
             _ok(f"AWS profile '{profile}' found")
         except Exception as e:
             _warn(f"Could not verify profile list: {e}")
@@ -260,9 +282,9 @@ def validate_aws_credentials(profile, region):
         _fail("No AWS credentials found.")
         _info("Run: aws configure --profile <name>")
         _info("Or set: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY")
-        sys.exit(1)
+        raise CheckerAbort("no aws credentials")
     except Exception as e:
-        _fail(f"Credential check failed: {e}"); sys.exit(1)
+        _fail(f"Credential check failed: {e}"); raise CheckerAbort("credential check failed")
 
     s3 = session.client("s3")
     _ok("S3 client created successfully")
@@ -536,30 +558,26 @@ def write_html_report(report: dict, path: Path):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MAIN
+# PIPELINE — callable programmatically (GUI) or via main() (CLI)
 # ══════════════════════════════════════════════════════════════════════════════
-def main():
-    parser = argparse.ArgumentParser(description="RDS S3 Backup Checker — Phenome Networks")
-    parser.add_argument("--config",       default=str(DEFAULT_CONFIG))
-    parser.add_argument("--output",       default=str(DEFAULT_OUTPUT_STEM),
-                        help="Output base name (no extension). Date is appended automatically. "
-                             "Three files are written: <name>_YYYY-MM-DD.{json,html,csv}")
-    parser.add_argument("--profile",      default=None)
-    parser.add_argument("--region",       default="us-east-1")
-    parser.add_argument("--min-size-mb",  type=int, default=DEFAULT_MIN_MB)
-    parser.add_argument("--max-age-days", type=int, default=DEFAULT_MAX_DAYS)
-    parser.add_argument("--dry-run",      action="store_true")
-    args = parser.parse_args()
+def run_pipeline(config, output, profile=None, region="us-east-1",
+                  min_size_mb=DEFAULT_MIN_MB, max_age_days=DEFAULT_MAX_DAYS,
+                  dry_run=False):
+    """Runs the full validate → scan → report pipeline.
 
-    if args.min_size_mb  <= 0: print(f"{RD}--min-size-mb must be > 0{R}",  file=sys.stderr); sys.exit(1)
-    if args.max_age_days <= 0: print(f"{RD}--max-age-days must be > 0{R}", file=sys.stderr); sys.exit(1)
+    Returns the report dict, or None when dry_run=True (no scan/report is produced).
+    Raises CheckerAbort on a fatal error that has already been logged via print().
+    Raises ValueError if min_size_mb/max_age_days are not positive.
+    """
+    if min_size_mb  <= 0: raise ValueError("min_size_mb must be > 0")
+    if max_age_days <= 0: raise ValueError("max_age_days must be > 0")
 
-    config_path = Path(args.config)
+    config_path = Path(config)
     now         = datetime.now(timezone.utc)
     date_tag    = now.strftime(DATE_FORMAT)
 
     # Derive output paths — reports go into a date subfolder, e.g. .../2026-05-17/
-    out_base = Path(args.output)
+    out_base = Path(output)
     out_dir  = out_base.parent / date_tag
     out_json = out_dir / f"{out_base.stem}_{date_tag}.json"
     out_html = out_dir / f"{out_base.stem}_{date_tag}.html"
@@ -572,28 +590,28 @@ def main():
     _info(f"Output (JSON): {out_json}")
     _info(f"Output (HTML): {out_html}")
     _info(f"Output (CSV):  {out_csv}")
-    _info(f"Min size:      {args.min_size_mb} MB")
-    _info(f"Max age:       {args.max_age_days} days")
-    _info(f"AWS profile:   {args.profile or '(default)'}")
-    if args.dry_run: _warn("DRY RUN — S3 scanning will be skipped")
+    _info(f"Min size:      {min_size_mb} MB")
+    _info(f"Max age:       {max_age_days} days")
+    _info(f"AWS profile:   {profile or '(default)'}")
+    if dry_run: _warn("DRY RUN — S3 scanning will be skipped")
 
     # ── pre-flight ────────────────────────────────────────────────────────────
     validate_python()
-    config = validate_config_file(config_path)
+    config_data = validate_config_file(config_path)
     validate_output_paths([out_json, out_html, out_csv])
-    s3 = validate_aws_credentials(args.profile, args.region)
+    s3 = validate_aws_credentials(profile, region)
 
-    if args.dry_run:
+    if dry_run:
         _sec("DRY RUN complete — all validations passed")
-        customers = config.get("customers", [])
+        customers = config_data.get("customers", [])
         to_scan = sum(1 for c in customers if not c.get("_skip") and not c.get("_na")
                       and c.get("bucket") and c.get("prefix"))
         print(f"\n{GR}  Ready to scan {to_scan} environments.{R}\n")
-        sys.exit(0)
+        return None
 
     # ── scan ──────────────────────────────────────────────────────────────────
-    customers      = config.get("customers", [])
-    min_bytes      = args.min_size_mb * 1024 * 1024
+    customers      = config_data.get("customers", [])
+    min_bytes      = min_size_mb * 1024 * 1024
 
     _sec(f"STEP 4 — Scanning {len(customers)} environments")
     print(f"  {'#':<5} {'Customer':<38} {'Status':<18} {'Size':<10} {'Date'}")
@@ -631,7 +649,7 @@ def main():
                          "size": "", "backupDate": "", "notes": err,
                          "path": f"s3://{bucket}/{prefix}/"}); continue
 
-        result = check_backup(regional_s3, bucket, prefix, min_bytes, args.max_age_days)
+        result = check_backup(regional_s3, bucket, prefix, min_bytes, max_age_days)
         st     = result["status"]
         icons  = {"ok": f"{GR}✓{R}", "missing": f"{RD}✗{R}", "suspect": f"{YL}⚠{R}"}
         labels = {"ok": f"{GR}OK{R}", "missing": f"{RD}MISSING{R}", "suspect": f"{YL}SUSPECT{R}"}
@@ -672,12 +690,13 @@ def main():
     report = {
         "reportDate":  date_tag,
         "reportWeek":  _iso_week(now),
-        "reviewer":    config.get("reviewer", ""),
+        "reviewer":    config_data.get("reviewer", ""),
         "generatedAt": now.isoformat(),
-        "flags":       {"minSizeMb": args.min_size_mb, "maxAgeDays": args.max_age_days,
-                        "awsProfile": args.profile or "(default)"},
+        "flags":       {"minSizeMb": min_size_mb, "maxAgeDays": max_age_days,
+                        "awsProfile": profile or "(default)"},
         "summary":     {"total": len(rows), "ok": ok_n, "missing": mis_n, "suspect": sus_n, "na": na_n},
         "rows":        rows,
+        "outputPaths": {"json": str(out_json), "html": str(out_html), "csv": str(out_csv)},
     }
 
     # ── write all three formats ───────────────────────────────────────────────
@@ -685,22 +704,53 @@ def main():
         write_json_report(report, out_json)
         _ok(f"JSON  → {out_json}")
     except Exception as e:
-        _fail(f"Failed to write JSON: {e}"); sys.exit(1)
+        _fail(f"Failed to write JSON: {e}"); raise CheckerAbort("failed to write json")
 
     try:
         write_html_report(report, out_html)
         _ok(f"HTML  → {out_html}")
     except Exception as e:
-        _fail(f"Failed to write HTML: {e}"); sys.exit(1)
+        _fail(f"Failed to write HTML: {e}"); raise CheckerAbort("failed to write html")
 
     try:
         write_csv_report(report, out_csv)
         _ok(f"CSV   → {out_csv}")
     except Exception as e:
-        _fail(f"Failed to write CSV: {e}"); sys.exit(1)
+        _fail(f"Failed to write CSV: {e}"); raise CheckerAbort("failed to write csv")
 
     print()
-    sys.exit(1 if mis_n > 0 else 0)   # non-zero exit if any missing (for cron/CI)
+    return report
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN — thin CLI wrapper around run_pipeline()
+# ══════════════════════════════════════════════════════════════════════════════
+def main():
+    parser = argparse.ArgumentParser(description="RDS S3 Backup Checker — Phenome Networks")
+    parser.add_argument("--config",       default=str(DEFAULT_CONFIG))
+    parser.add_argument("--output",       default=str(DEFAULT_OUTPUT_STEM),
+                        help="Output base name (no extension). Date is appended automatically. "
+                             "Three files are written: <name>_YYYY-MM-DD.{json,html,csv}")
+    parser.add_argument("--profile",      default=None)
+    parser.add_argument("--region",       default="us-east-1")
+    parser.add_argument("--min-size-mb",  type=int, default=DEFAULT_MIN_MB)
+    parser.add_argument("--max-age-days", type=int, default=DEFAULT_MAX_DAYS)
+    parser.add_argument("--dry-run",      action="store_true")
+    args = parser.parse_args()
+
+    if args.min_size_mb  <= 0: print(f"{RD}--min-size-mb must be > 0{R}",  file=sys.stderr); sys.exit(1)
+    if args.max_age_days <= 0: print(f"{RD}--max-age-days must be > 0{R}", file=sys.stderr); sys.exit(1)
+
+    try:
+        report = run_pipeline(args.config, args.output, args.profile, args.region,
+                               args.min_size_mb, args.max_age_days, args.dry_run)
+    except CheckerAbort:
+        sys.exit(1)
+
+    if args.dry_run:
+        sys.exit(0)
+
+    sys.exit(1 if report["summary"]["missing"] > 0 else 0)   # non-zero exit if any missing (for cron/CI)
 
 
 if __name__ == "__main__":

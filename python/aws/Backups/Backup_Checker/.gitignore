@@ -1,0 +1,6 @@
+BackupChecker.exe
+desktop.ini
+backup_report*.csv
+backup_report*.html
+backup_report*.json
+!BackupChecker.spec
