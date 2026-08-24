@@ -245,8 +245,17 @@ Blocked outright: Delete, Remove, Save, Submit, Import, Execute, Archive,
 Publish, Approve, Reject, Reset, Send, Logout/Sign out (and ~90 more verbs),
 anything that submits or resets a form, POST triggers, downloads, `mailto:`,
 `javascript:`, `blob:`, `data:`, non-http schemes, cross-origin navigation, and
-`target=_blank`. Structure outranks labels: a button captioned "Go" that
-implicitly submits a POST form is DANGEROUS.
+`target=_blank`.
+
+**Structure outranks labels.** A button captioned "Go" that implicitly submits a
+POST form is DANGEROUS. So is a link captioned "Open record" whose href is
+`?action=delete&id=7` - a destructive verb in a command parameter
+(`action`/`op`/`do`/`cmd`/`method`/`task`) is read as a command, not decoration.
+Benign queries (`?tab=overview&sort=name&page=3`) still navigate.
+
+**Known limitation:** a control whose accessible name misdescribes what it does
+("View report" that deletes) cannot be classified from the DOM alone. Crawl
+non-production environments.
 
 Guards, all test-asserted: native dialogs are always dismissed and the action
 that raised one is never retried; downloads are refused at the browser-context

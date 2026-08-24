@@ -61,8 +61,8 @@ def run_suite(name: str, debug: bool) -> tuple[bool, int, int, float, str]:
     for m in RESULT_RE.finditer(out):
         pass
     passed, total = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
-    fails = [l.strip() for l in out.splitlines() if l.strip().startswith("FAIL")
-             or l.strip().startswith("- ")][:4]
+    fails = [l.strip() for l in out.splitlines()
+             if l.strip().startswith("FAIL ") or l.strip().startswith("- FAIL")][:4]
     ok = proc.returncode == 0 and total > 0 and passed == total
     return ok, passed, total, took, "; ".join(fails)
 

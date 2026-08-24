@@ -119,7 +119,8 @@ class SafeCrawler:
         self._poison: set[tuple[str, str]] = set()      # (state, element) never to click again
         self._tried: set[tuple[str, str]] = set()
         self._clicks_per_element: dict[str, int] = {}
-        self._noop_elements: set[str] = set()      # never changed state anywhere
+        self._noop_elements: set[str] = set()      # inert in >= 2 distinct states
+        self._noop_seen: dict[str, set[str]] = {}  # element -> states where it did nothing
         self._dialog_seen: list[str] = []
         self._page = None
         self._handlers: list[tuple[str, Any]] = []
@@ -487,9 +488,13 @@ class SafeCrawler:
         dest = res.state_id
         if dest == state_id:
             self._skip("no-state-change")
-            # Inert here; assume inert everywhere until proven otherwise. This
-            # is what removes the bulk of a naive BFS's wasted clicks.
-            self._noop_elements.add(cand.key)
+            # Inert HERE is not proof it is inert everywhere: a "Details" button
+            # can do nothing on an empty grid and open a panel elsewhere. Only
+            # prune globally once it has done nothing in two distinct states.
+            seen_in = self._noop_seen.setdefault(cand.key, set())
+            seen_in.add(state_id)
+            if len(seen_in) >= 2:
+                self._noop_elements.add(cand.key)
         else:
             action = {
                 "type": cand.element.get("type") or "click",

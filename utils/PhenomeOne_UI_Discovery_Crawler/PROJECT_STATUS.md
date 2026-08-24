@@ -5,11 +5,11 @@
 | | |
 |---|---|
 | Last updated | 2026-08-24 |
-| Version | 1.1.1 (V1 + autonomous discovery + live-environment hardening) |
+| Version | 1.1.2 (V1 + autonomous discovery + live hardening + QA/red-team pass) |
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` (uncommitted, nothing pushed) |
 | Build output | `C:\Users\itay-b\p1uid-final2\PhenomeOne-UI-Discovery\` (555 MB) |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **326/326 passing** — 296 source + 30 packaged |
+| Tests | **395/395 passing** — 365 source (10 suites) + 30 packaged |
 | Blocked on | **EKS-LAB / real PhenomeOne validation — no credentials in this session** |
 | First real run | 2026-08-24 against `eksdemo-helm.phenome-networks.com`: exposed 4 bugs, all fixed (see §2.7) |
 
@@ -109,11 +109,40 @@ Also fixed while in there:
   the front on startup.
 * **No blank states** — `about:blank`/error pages are never recorded as UI states.
 
+### Phase 8 — Local QA / red-team pass (2026-08-25)
+
+Adversarial pass whose goal was to make the tool do damage. Bugs found and fixed:
+
+| # | Severity | Bug | Fix |
+|---|---|---|---|
+| 1 | **CRITICAL (safety)** | A destructive command hidden in a query string was invisible to the classifier: `<a href="/germplasm?action=delete&id=7">Open record</a>` classified **SAFE_NAVIGATION** and *would have been clicked* by the crawler. The injected core never exposed `location.search`. | Core now reports `link.search`; the classifier treats a destructive verb in a command parameter (`action`/`op`/`do`/`cmd`/`method`/`task`/…) as structural, with its own `dangerous-query` flag, evaluated before any label vocabulary. Benign queries (`?tab=overview&sort=name&page=3`) still navigate. |
+| 2 | Medium (precision) | An embedded sign-in widget (an IdP iframe on a page) aborted a healthy crawl as "session lost". | Session loss now requires a visible password field **and** the app no longer rendering (`looks_authenticated`). |
+| 3 | Medium (efficiency) | Naive BFS re-clicked global controls from every state: 120 clicks / 151 s for 11 states, hitting the action budget with 30 no-op clicks. | Inert elements are learned and skipped globally; one element may be retried from at most `max_repeats_per_element` (3) states. **40 clicks / 56 s for the same 11 states** — no budget exhaustion. |
+| 4 | Low (consumer) | Generated page objects listed dialog/menu locators with no hint that they cannot resolve until that surface is open, so a consumer sees them as broken. | Each such property is annotated `NOT VISIBLE in this state: open <dialog> first`, plus machine-readable `NEEDS_OPENING` / `STATES` registries in both TS and Python. |
+| 5 | Low (self-inflicted) | Scripted edits silently mangled ``, `
+` and `\s` into control bytes, once disabling a live regex rule. | Every scripted edit is followed by a control-byte scan of `src/` (command in §5). |
+
+Test-premise defects corrected (not product bugs, but they made a test lie):
+* the "report is self-contained" check rejected an environment URL printed as
+  *data*; it now checks for resource **loading** (`<script`, `src=`, `href=`, `@import`);
+* the artifact list asserted files the tool never wrote — it is now the exact
+  produced set, missing **and** unexpected;
+* a red-team control was named "Browse archive", so the dangerous-verb rule fired
+  before the empty-`href` path it was meant to exercise.
+
+Accepted limitation (documented, not fixed): a control whose accessible name
+**misdescribes** its behaviour ("View report" that deletes) cannot be classified
+from the DOM. Mitigation: crawl only non-production environments, and the
+per-app vocabulary tuning in §4.
+
 ---
 
 ## 3. Test status
 
 Run from the source directory (`python tests/<name>.py`).
+
+Run everything three times from a clean state with:
+`python tests/run_all.py --runs 3` (flakiness is reported per suite).
 
 | Suite | Checks | Covers |
 |---|---|---|
@@ -122,6 +151,8 @@ Run from the source directory (`python tests/<name>.py`).
 | `test_crawler.py` | 22 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_pipeline.py` | 50 | workflows, UI diff, codegen, JUnit, CI exit codes |
 | `test_recovery.py` | 15 | the four live-environment failures above |
+| `test_redteam.py` | 35 | adversarial surface: URL commands, popups, JS downloads, nested iframes, loops, ambiguity, unlabelled controls |
+| `test_artifacts.py` | 34 | exact artifact set, schema keys, **generated Python executed against the mock**, leak scan |
 | `test_e2e_mock.py` | 30 | login → scan → training → outputs |
 | `test_login_variants.py` | 8 | slow form, iframe IdP form, landing page, no form |
 | `test_gui_smoke.py` | 21 | real Tk window driving the real browser |
@@ -159,6 +190,13 @@ It **moves** the folder (relocation test), so pass the current location.
    (broken, no exe), `p1uid-build-v2` (v1.0.0) and `p1uid-final` (v1.1.0) are all
    superseded by `p1uid-final2`. Delete the first three to avoid clicking a dead
    folder.
+
+### Portability status (verified 2026-08-25)
+Built into `C:\Users\itay-b\QA Build With Spaces\`, verified there (30/30),
+then **relocated to a second unrelated path containing spaces, an ampersand and
+parentheses** - `C:\Users\itay-b\Another QA Folder (v2) & more\` - and re-run
+end to end (login + scan + training + crawl + codegen) in a stripped environment.
+Exit 0, every artifact written, no secret leaked.
 
 ### Not blocked — next code steps
 5. **Crawl performance**: validation is ~9 ms/element and replays cost 1–2 s.
@@ -248,6 +286,8 @@ training-summary, crawl-summary, workflows, ui-diff, generated/), `reports/`
 
 1. `auto_clickable` is **only** true for SAFE_NAVIGATION with no blocking flag,
    and is forced false for DANGEROUS and UNKNOWN.
+1a. A destructive verb in a **URL command parameter** outranks the link text:
+   `?action=delete` is DANGEROUS however the link is labelled.
 2. The crawler clicks nothing else, ever.
 3. Native dialogs are always dismissed, never accepted.
 4. Downloads are refused at the browser-context level.
