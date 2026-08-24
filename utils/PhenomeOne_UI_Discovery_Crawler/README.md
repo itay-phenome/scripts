@@ -214,9 +214,31 @@ See `ARCHITECTURE.md` for the module map and design decisions.
 * Not tested against the real PhenomeOne application; all verification here is
   against the bundled mock SPA.
 
-## Not built yet (designed for, deliberately out of scope for v1)
+## Autonomous discovery (Safe Crawl) - foundation only
 
-Safe Crawl (autonomous exploration of safe controls), workflow recording, UI diff
-between revisions, Jenkins pipeline integration, and test generation. The engine
-is GUI-free and importable (`p1uid.browser.controller.Engine`), so these can be
-added without touching the discovery core.
+The groundwork is in place; **there is no crawler yet** and nothing is clicked
+automatically.
+
+* `p1uid.discovery.stability.wait_stable()` - "has the UI finished reacting?",
+  driven by mutations plus the structural signature. No fixed sleeps, and
+  deliberately not `networkidle` (an app that polls never reaches it).
+* Element records carry what a classifier needs: `inputType`, `buttonType` /
+  `effectiveButtonType`, `inForm`, `form` (identity/method/action), `link`
+  (scheme/origin/download/target), `hasPopup`, `iconOnly`, and structural
+  `context` (dialog/toolbar/grid/menu/landmark/row).
+* `p1uid.crawler.safety.classify()` - returns `SAFE_NAVIGATION`, `CONDITIONAL`,
+  `DANGEROUS` or `UNKNOWN` plus reasons and flags. A crawler may click **only**
+  verdicts with `auto_clickable == True`, which is impossible for DANGEROUS and
+  UNKNOWN by construction.
+
+Blocked outright: Delete, Remove, Save, Submit, Import, Execute, Archive,
+Publish, Approve, Reject, Reset, Send, Logout/Sign out (and ~90 more verbs),
+anything that submits or resets a form, POST triggers, downloads, `mailto:`,
+`javascript:`, `blob:`, `data:`, non-http schemes, cross-origin navigation, and
+`target=_blank`. Structure outranks labels: a button captioned "Go" that
+implicitly submits a POST form is DANGEROUS.
+
+Still to build: the BFS crawler itself, workflow recording, UI diff between
+revisions, Jenkins integration, and test generation. The engine is GUI-free and
+importable (`p1uid.browser.controller.Engine`), so these bolt on without
+touching the discovery core.

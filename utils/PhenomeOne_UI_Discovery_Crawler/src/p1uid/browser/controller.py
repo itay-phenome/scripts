@@ -270,8 +270,10 @@ class Engine:
         if self.page is None or self.page.is_closed():
             self.emit(type="error", op="scan", msg="no open page to scan")
             return
+        # An explicit user scan waits for the page to settle first; training
+        # scans do not, because the trainer is already event-driven.
         res = await scanner.scan_page(self.page, self.store, origin=self.origin,
-                                     validate_limit=self.validate_limit)
+                                      validate_limit=self.validate_limit, stabilise=True)
         if res is None:
             self.emit(type="error", op="scan", msg="nothing analysable on this page")
             return

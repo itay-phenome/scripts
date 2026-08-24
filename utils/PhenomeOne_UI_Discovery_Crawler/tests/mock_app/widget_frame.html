@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Embedded widget</title>
+<style>body{font:13px/1.5 Segoe UI,sans-serif;padding:10px}</style>
+<!-- Controls inside an iframe: discovery must find them, and the classifier
+     must judge them exactly as it would in the main frame. -->
+<h3>Embedded widget</h3>
+<button data-testid="frame-view">View report</button>
+<button data-testid="frame-delete">Delete report</button>
+<form method="post" action="/api/frame-submit">
+  <label for="fq">Query</label><input id="fq" name="q" type="text">
+  <button type="submit">Run query</button>
+</form>
+<a href="/app/research-groups" data-testid="frame-link">Research Groups</a>

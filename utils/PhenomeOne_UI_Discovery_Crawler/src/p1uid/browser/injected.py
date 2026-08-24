@@ -241,6 +241,161 @@ const INTERACTIVE_TYPES = new Set(['button','link','tab','menuitem','textbox','s
   'combobox','listbox','option','checkbox','radio','switch','slider','spinbutton','treeitem',
   'clickable','focusable','password','pagination','testid-element']);
 
+// ------------------------------------------- action / form / link metadata
+// Everything the safety classifier needs to judge an action WITHOUT clicking it
+// (spec: autonomous discovery phase 1).
+
+const FILE_HREF = /\.(pdf|csv|tsv|xlsx?|docx?|pptx?|zip|gz|tgz|tar|7z|rar|png|jpe?g|gif|bmp|svg|txt|log|json|xml|exe|msi|dmg|iso|apk)(\?|#|$)/i;
+
+function formInfo(el) {
+  const f = (el.form !== undefined && el.form) || (el.closest && el.closest('form'));
+  if (!f) return null;
+  let action = '';
+  try {
+    const raw = f.getAttribute('action');
+    action = raw ? new URL(raw, location.href).pathname : '';
+  } catch (e) { action = ''; }
+  const index = Array.from(document.forms).indexOf(f);
+  const named = clip(f.getAttribute('id') || f.getAttribute('name') ||
+                     f.getAttribute('aria-label') || f.getAttribute('data-testid') || '', 60);
+  return {
+    identity: named || action || ('form#' + index),
+    id: named,
+    index: index,
+    method: clip((f.getAttribute('method') || 'get').toLowerCase(), 10),
+    action: clip(action, 100),
+    controls: f.querySelectorAll ? f.querySelectorAll('input,select,textarea').length : 0
+  };
+}
+
+function linkInfo(el) {
+  if (!el.hasAttribute || !el.hasAttribute('href')) return null;
+  const raw = el.getAttribute('href') || '';
+  const m = raw.match(/^([a-z][a-z0-9+.\-]*):/i);
+  let scheme = m ? m[1].toLowerCase() : location.protocol.replace(':', '');
+  let sameOrigin = false, pathname = '', origin = '';
+  try {
+    const u = new URL(raw, location.href);
+    origin = u.origin;
+    sameOrigin = u.origin === location.origin;
+    pathname = u.pathname + (u.hash || '');
+  } catch (e) { /* opaque scheme */ }
+  return {
+    raw: clip(raw, 140),
+    scheme: scheme,
+    origin: clip(origin, 80),
+    sameOrigin: sameOrigin,
+    pathname: clip(pathname, 120),
+    download: el.hasAttribute('download'),
+    fileLike: FILE_HREF.test(raw),
+    target: clip(el.getAttribute('target') || '', 20),
+    empty: raw === '' || raw === '#'
+  };
+}
+
+// Per-collect memo caches. Ancestor names (a dialog title, a grid label) are
+// otherwise recomputed for every descendant, which is O(elements x subtree).
+let _nameCache = null;
+let _headCache = null;
+
+function cachedName(node, role) {
+  if (!_nameCache) {
+    try { return clip(accessibleName(node, role).name, 60); } catch (e) { return ''; }
+  }
+  if (_nameCache.has(node)) return _nameCache.get(node);
+  let v = '';
+  try { v = clip(accessibleName(node, role).name, 60); } catch (e) { v = ''; }
+  _nameCache.set(node, v);
+  return v;
+}
+
+function nearestHeading(el) {
+  const key = el.parentElement || el;
+  if (_headCache && _headCache.has(key)) return _headCache.get(key);
+  const out = computeNearestHeading(el);
+  if (_headCache) _headCache.set(key, out);
+  return out;
+}
+
+function computeNearestHeading(el) {
+  // Cheap: inspect previous siblings' own tags only, walking up a few levels.
+  let node = el;
+  for (let up = 0; node && up < 6; up++) {
+    let sib = node.previousElementSibling, seen = 0;
+    while (sib && seen < 6) {
+      if (/^H[1-6]$/.test(sib.tagName) || sib.getAttribute('role') === 'heading') {
+        return clip(contentText(sib), 60);
+      }
+      sib = sib.previousElementSibling;
+      seen++;
+    }
+    node = node.parentElement;
+  }
+  return '';
+}
+
+function contextOf(el) {
+  const c = {};
+  if (!el.closest) return c;
+  const named = cachedName;
+  const dlg = el.closest('[role="dialog"],[role="alertdialog"],dialog,[aria-modal="true"]');
+  if (dlg) c.dialog = named(dlg, 'dialog') || '(untitled dialog)';
+  const tb = el.closest('[role="toolbar"]');
+  if (tb) c.toolbar = named(tb, 'toolbar') || '(unnamed toolbar)';
+  const grid = el.closest('table,[role="grid"],[role="treegrid"]');
+  if (grid) c.grid = named(grid, computeRole(grid)) || '(unnamed grid)';
+  if (el.closest('tr,[role="row"]')) c.inRow = true;
+  const menu = el.closest('[role="menu"],[role="menubar"]');
+  if (menu) c.menu = named(menu, 'menu') || '(unnamed menu)';
+  const lm = el.closest('main,[role="main"],nav,[role="navigation"],header,[role="banner"],' +
+                        'footer,[role="contentinfo"],aside,[role="complementary"],[role="region"]');
+  if (lm) c.landmark = computeRole(lm);
+  const h = nearestHeading(el);
+  if (h) c.heading = h;
+  return c;
+}
+
+function actionInfo(el, rec) {
+  const tag = el.tagName;
+  if (tag === 'INPUT') rec.inputType = clip((el.getAttribute('type') || 'text').toLowerCase(), 20);
+  const form = formInfo(el);
+  if (form) {
+    rec.form = form;
+    rec.inForm = true;
+  }
+  if (tag === 'BUTTON') {
+    const t = clip((el.getAttribute('type') || '').toLowerCase(), 10);
+    rec.buttonType = t;
+    // A <button> with no type inside a form submits it - the single most
+    // common way an "innocent looking" click writes data.
+    rec.effectiveButtonType = t || (form ? 'submit' : 'button');
+  }
+  const link = linkInfo(el);
+  if (link) rec.link = link;
+  const pop = el.getAttribute('aria-haspopup');
+  if (pop) rec.hasPopup = clip(pop.toLowerCase(), 20);
+  const ctrls = el.getAttribute('aria-controls');
+  if (ctrls) rec.controls = clip(ctrls, 60);
+  if (el.hasAttribute('download')) rec.download = true;
+  if (el.hasAttribute('formaction')) {
+    rec.formAction = clip(el.getAttribute('formaction'), 100);
+  }
+  if (el.hasAttribute('formmethod')) {
+    rec.formMethod = clip((el.getAttribute('formmethod') || '').toLowerCase(), 10);
+  }
+  const ctx = contextOf(el);
+  if (Object.keys(ctx).length) rec.context = ctx;
+  // Icon-only: a control a human recognises by picture alone. Safe to click
+  // only if it carries an accessible label saying what it does.
+  const textish = rec.directText || rec.name;
+  if (!textish && (rec.role === 'button' || rec.role === 'link' || rec.role === 'menuitem' ||
+                   rec.role === 'tab' || rec.type === 'clickable')) {
+    rec.iconOnly = true;
+    rec.labelled = !!rec.name;
+  }
+  return rec;
+}
+
 // ------------------------------------------------------------ grid metadata
 // Structural metadata ONLY -- never row values (spec 18).
 function gridMeta(el) {
@@ -325,6 +480,7 @@ function elementRecord(el, frame) {
   if (chk !== null) rec.checked = chk === 'true';
   else if (el.type === 'checkbox' || el.type === 'radio') rec.checked = !!el.checked;
   if (el.required || el.getAttribute('aria-required') === 'true') rec.required = true;
+  actionInfo(el, rec);
   if (rec.type === 'grid' || rec.type === 'table') rec.grid = gridMeta(el);
   if (el.tagName === 'SELECT') {
     rec.options = Array.from(el.options).slice(0, 25).map(o => clip(o.textContent, 60)).filter(Boolean);
@@ -400,10 +556,14 @@ function collect(opts) {
   const limit = (opts && opts.maxElements) || 1500;
   const frame = (opts && opts.frame) || '';
   const h = harvest(document, limit);
+  _nameCache = new Map();
+  _headCache = new Map();
   const records = [];
   for (const el of h.els) {
     try { records.push(elementRecord(el, frame)); } catch (e) { /* skip hostile node */ }
   }
+  _nameCache = null;
+  _headCache = null;
   const keep = records.filter(r => r.type && (r.interactive || r.container));
   return {
     structure: structureOf(records),
@@ -569,9 +729,63 @@ function installObservers() {
   window.addEventListener('hashchange', () => { if (state.observing) scheduleCheck('hashchange', 250); });
 }
 
+// ------------------------------------------------------------- waitStable
+// Resolves once the page has stopped changing: no DOM mutations for `quietMs`
+// AND the structural signature identical across that window. Event-driven -
+// no fixed sleeps, and deliberately NOT tied to network idle, which never
+// settles on an app that polls or keeps a socket open.
+function waitStable(opts) {
+  opts = opts || {};
+  const quiet = opts.quietMs || 250;
+  const timeout = opts.timeoutMs || 5000;
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    let sig = domSignature();
+    let changes = 0;
+    let quietTimer = null, hardTimer = null, mo = null, done = false;
+
+    const finish = (reason) => {
+      if (done) return;
+      done = true;
+      if (mo) mo.disconnect();
+      if (quietTimer) clearTimeout(quietTimer);
+      if (hardTimer) clearTimeout(hardTimer);
+      resolve({ stable: reason === 'quiet', reason: reason, changes: changes,
+                ms: Math.round(performance.now() - t0), signature: sig,
+                readyState: document.readyState });
+    };
+
+    const settle = () => {
+      const now = domSignature();
+      if (now !== sig) {            // changed without a mutation we saw: keep waiting
+        sig = now;
+        changes++;
+        arm();
+        return;
+      }
+      finish('quiet');
+    };
+
+    const arm = () => {
+      if (quietTimer) clearTimeout(quietTimer);
+      quietTimer = setTimeout(settle, quiet);
+    };
+
+    try {
+      mo = new MutationObserver(() => { changes++; arm(); });
+      mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true,
+        attributeFilter: ['aria-selected','aria-expanded','aria-hidden','aria-busy','open','hidden','class','style','disabled'] });
+    } catch (e) { /* no document yet */ }
+    hardTimer = setTimeout(() => finish('timeout'), timeout);
+    arm();
+  });
+}
+
 window.__p1uidCore = {
   version: 1,
   collect: collect,
+  waitStable: waitStable,
+  signature: function () { return domSignature(); },
   startObserving: function () {
     installObservers();
     state.observing = true;

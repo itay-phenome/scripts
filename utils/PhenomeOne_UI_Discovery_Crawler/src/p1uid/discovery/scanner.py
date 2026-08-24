@@ -40,6 +40,7 @@ class ScanResult:
     confidence: dict[str, int] = field(default_factory=lambda: {HIGH: 0, MEDIUM: 0, LOW: 0})
     timings_ms: dict[str, int] = field(default_factory=dict)
     structure: dict[str, Any] = field(default_factory=dict)
+    stability: dict[str, Any] | None = None
 
 
 def _reuse_validation(store, sid: str, row: dict[str, Any]) -> bool:
@@ -96,7 +97,8 @@ async def collect_frame(frame: Any, max_elements: int = 1500) -> dict[str, Any] 
 
 async def scan_page(page: Any, store, origin: str = "", validate: bool = True,
                     validate_limit: int = 500, max_elements: int = 1500,
-                    validate_new_only: bool = False) -> ScanResult | None:
+                    validate_new_only: bool = False,
+                    stabilise: bool = False) -> ScanResult | None:
     """Full scan of the page's current UI state, merged into `store`.
 
     `validate_new_only` reuses the previously validated result for an element
@@ -105,6 +107,19 @@ async def scan_page(page: Any, store, origin: str = "", validate: bool = True,
     Playwright round trip per element; explicit "Scan Current Page" does not,
     so a manual scan is always authoritative.
     """
+    t_start = time.perf_counter()
+    if stabilise:
+        # Local import: stability imports this module for ensure_core().
+        from . import stability
+        st = await stability.wait_stable(page)
+        res_stability = {"stable": st.stable, "reason": st.reason, "ms": st.ms, "changes": st.changes}
+        if not st.stable:
+            log.warning("Page had not settled before scanning (%s after %d ms, %d changes)",
+                        st.reason, st.ms, st.changes)
+    else:
+        res_stability = None
+    # The settle wait is reported separately: folding it into `collect` would
+    # make the scan look 250 ms slower than it is.
     t0 = time.perf_counter()
     frames = _scannable_frames(page)
     collected: list[tuple[Any, dict[str, Any]]] = []
@@ -126,6 +141,8 @@ async def scan_page(page: Any, store, origin: str = "", validate: bool = True,
 
     res = ScanResult(state_id=sid, is_new_state=is_new, label=fp.label, route=fp.route,
                      fingerprint=fp.digest, frames=len(collected), structure=structure)
+    if res_stability is not None:
+        res.stability = res_stability
 
     # --- locator generation ------------------------------------------------
     per_frame: list[tuple[Any, list[dict[str, Any]]]] = []
@@ -183,11 +200,13 @@ async def scan_page(page: Any, store, origin: str = "", validate: bool = True,
     res.elements = total_elements
     res.added = added
     res.timings_ms = {
+        "stabilise": int((t0 - t_start) * 1000),
         "collect": int((t_collect - t0) * 1000),
         "generate": int((t_generate - t_collect) * 1000),
         "validate": int((t_validate - t_generate) * 1000),
         "merge": int((t_merge - t_validate) * 1000),
         "total": int((t_merge - t0) * 1000),
+        "totalWithWait": int((t_merge - t_start) * 1000),
     }
     log.info("Scan: state=%s%s elements=%d (new %d) frames=%d  [collect %dms, locators %dms, "
              "validate %dms, merge %dms]", sid, " NEW" if is_new else "", total_elements, added,

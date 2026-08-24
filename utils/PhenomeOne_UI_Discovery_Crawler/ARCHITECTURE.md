@@ -32,6 +32,8 @@ src/p1uid/
   store/uimap.py          incremental merge, locator history, UNSTABLE detection
   navigation/graph.py     nodes/edges + readable spanning tree
   training/trainer.py     correlates observed actions with observed state changes
+  discovery/stability.py  waitStable(): settle detection for autonomous discovery
+  crawler/safety.py       SAFE_NAVIGATION / CONDITIONAL / DANGEROUS / UNKNOWN
   reporting/html_report.py self-contained HTML report
   security/               dpapi.py, session_store.py
 ```
@@ -111,6 +113,33 @@ Empirically checked against Playwright 1.61 rather than assumed:
 * `is_visible()`/`is_enabled()` must be given explicit short timeouts, or an
   element that disappeared between collect and validation stalls a scan for the
   full 30 s default.
+
+## Action safety (autonomous discovery foundation)
+
+`crawler/safety.py` decides whether a machine may click something, from the
+element record alone - no clicking, no model, no network. Three rules shape it:
+
+1. **Fail closed.** Only positively-recognised navigation (tabs, same-origin
+   links, expanders, pagination, menu openers) becomes SAFE_NAVIGATION.
+   Everything else lands in CONDITIONAL or UNKNOWN. An unlabelled icon button is
+   UNKNOWN - it might be Save, it might be Delete.
+2. **Structure beats words.** `<button>` with no `type` inside a form submits it,
+   so a button captioned "Go" in a POST form is DANGEROUS. Likewise
+   `input[type=submit|reset|image]`, downloads, `mailto:`/`javascript:`/`blob:`/
+   `data:` URLs, cross-origin hrefs and `target=_blank`.
+3. **One gate.** `auto_clickable` is the only thing a crawler consults, and it is
+   forced False for DANGEROUS and UNKNOWN regardless of what the rules concluded.
+
+Two subtleties worth keeping: "OK"/"Yes"/"Continue" are *not* dismissals - in a
+confirm dialog they execute the destructive action - while "Close dialog" is; and
+a dismissal verb aimed at something that is not a UI surface ("Close account")
+is destructive. Context downgrades too: nothing inside an "Add ..." dialog or a
+form counts as plain navigation.
+
+`waitStable()` is the other half of the foundation. It resolves when there have
+been no mutations *and* no signature change for a quiet window. `networkidle` is
+avoided deliberately: a SaaS page that polls or holds a socket open never
+reaches it, and a page is usually settled long before its background traffic is.
 
 ## Safety
 

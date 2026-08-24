@@ -50,6 +50,42 @@ def logical_name(el: dict[str, Any]) -> str:
     return f"{name} {kind}".strip() if name else kind
 
 
+# Fields the safety classifier needs, kept in the map so a consumer can reason
+# about an action without re-scanning the app. Only truthy values are stored, so
+# the common case (a plain button outside any form) costs nothing.
+_ACTION_FIELDS = ("inputType", "buttonType", "effectiveButtonType", "inForm",
+                  "hasPopup", "iconOnly", "labelled", "download", "formMethod")
+_LINK_FIELDS = ("scheme", "sameOrigin", "pathname", "download", "fileLike", "target", "empty")
+# `heading` is deliberately dropped: the nearest heading is often a record name
+# (business data, spec 18). The rest is structure.
+_CONTEXT_FIELDS = ("dialog", "toolbar", "grid", "menu", "landmark", "inRow")
+
+
+def _merge_action_fields(entry: dict[str, Any], el: dict[str, Any]) -> None:
+    for key in _ACTION_FIELDS:
+        val = el.get(key)
+        if val:
+            entry[key] = val
+        else:
+            entry.pop(key, None)
+    form = el.get("form") or {}
+    if form:
+        entry["form"] = {k: form[k] for k in ("identity", "method", "action") if form.get(k)}
+    else:
+        entry.pop("form", None)
+    link = el.get("link") or {}
+    if link:
+        entry["link"] = {k: link[k] for k in _LINK_FIELDS if link.get(k)}
+    else:
+        entry.pop("link", None)
+    ctx = el.get("context") or {}
+    kept = {k: ctx[k] for k in _CONTEXT_FIELDS if ctx.get(k)}
+    if kept:
+        entry["context"] = kept
+    else:
+        entry.pop("context", None)
+
+
 class UIMapStore:
     def __init__(self, path=None) -> None:
         self.path = path or paths.UI_MAP_FILE
@@ -170,6 +206,7 @@ class UIMapStore:
             for opt in ("expandable", "expanded", "checked", "selected", "required"):
                 if opt in el:
                     entry[opt] = el[opt]
+            _merge_action_fields(entry, el)
             test_ids = {k: v for k, v in (el.get("attrs") or {}).items() if k.startswith("data-")}
             if test_ids:
                 entry["testIds"] = test_ids
