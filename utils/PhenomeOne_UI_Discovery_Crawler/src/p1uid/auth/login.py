@@ -266,10 +266,19 @@ async def describe_page(page: Any) -> str:
     return "\n".join(lines)
 
 
-async def wait_until_no_password(page: Any, timeout_s: float = 30.0) -> bool:
-    """True once no frame shows a visible password field (i.e. we are past login)."""
+async def wait_until_no_password(page: Any, timeout_s: float = 30.0,
+                                 should_cancel: Any = None) -> bool:
+    """True once no frame shows a visible password field (i.e. we are past login).
+
+    `should_cancel` is polled so a long manual-login wait can be superseded by
+    the user pressing LOGIN instead.
+    """
     deadline = time.monotonic() + timeout_s
     while True:
+        if should_cancel is not None and should_cancel():
+            return False
+        if page.is_closed():
+            return False
         remaining = False
         for frame in list(page.frames):
             try:
@@ -283,6 +292,36 @@ async def wait_until_no_password(page: Any, timeout_s: float = 30.0) -> bool:
         if time.monotonic() >= deadline:
             return False
         await asyncio.sleep(0.4)
+
+
+APP_MARKERS_JS = r"""
+() => {
+  const vis = (e) => {
+    const r = e.getBoundingClientRect();
+    const s = getComputedStyle(e);
+    return r.width > 1 && r.height > 1 && s.display !== 'none' && s.visibility !== 'hidden';
+  };
+  const count = (sel) => Array.from(document.querySelectorAll(sel)).filter(vis).length;
+  return {
+    landmarks: count('main,[role=main],nav,[role=navigation],[role=tablist]'),
+    controls: count('button,[role=button],a[href],[role=tab],[role=menuitem]'),
+    fields: count('input,select,textarea')
+  };
+}
+"""
+
+
+async def looks_authenticated(page: Any) -> bool:
+    """Heuristic: does this page look like the application rather than a gate?
+
+    Used only to distinguish "already signed in" from "the form has not rendered
+    yet" - never to claim a successful sign-in on its own.
+    """
+    try:
+        info = await page.evaluate(APP_MARKERS_JS)
+    except Exception:
+        return False
+    return bool(info.get("landmarks", 0) >= 1 and info.get("controls", 0) >= 5)
 
 
 _ENTRY_NAME = re.compile(r"^\s*(log ?in|sign ?in|log ?on|sign ?on)\s*$", re.I)

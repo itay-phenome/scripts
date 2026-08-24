@@ -111,6 +111,12 @@ async def scan_page(page: Any, store, origin: str = "", validate: bool = True,
     so a manual scan is always authoritative.
     """
     t_start = time.perf_counter()
+    url = (page.url or "")
+    if not url or url.startswith("about:") or url.startswith("chrome-error:"):
+        # A blank or error page is not a UI state; recording it would pollute
+        # the map with a state that no test could ever navigate to.
+        log.info("Nothing to scan: the page is at %s", url or "(no url)")
+        return None
     if stabilise:
         # Local import: stability imports this module for ensure_core().
         from . import stability

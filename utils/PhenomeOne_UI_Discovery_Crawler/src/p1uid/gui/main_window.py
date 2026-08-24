@@ -25,6 +25,39 @@ log = get("gui")
 
 PAD = 10
 
+# --- Win32 helpers -------------------------------------------------------
+# "It doesn't open" is almost always one of two things: a second copy started
+# behind the window that is already there, or a window placed off-screen on a
+# multi-monitor setup. Both are handled here.
+SW_RESTORE = 9
+
+
+def _find_existing_window() -> int:
+    """HWND of an already-running instance, or 0."""
+    if sys.platform != "win32":
+        return 0
+    try:
+        import ctypes
+        return int(ctypes.windll.user32.FindWindowW(None, paths.APP_NAME) or 0)
+    except Exception:
+        return 0
+
+
+def focus_existing_window() -> bool:
+    """Bring an already-running instance to the front instead of starting a second."""
+    hwnd = _find_existing_window()
+    if not hwnd:
+        return False
+    try:
+        import ctypes
+        u = ctypes.windll.user32
+        u.ShowWindow(hwnd, SW_RESTORE)
+        u.SetForegroundWindow(hwnd)
+        u.BringWindowToTop(hwnd)
+    except Exception:
+        return False
+    return True
+
 
 class App(tk.Tk):
     def __init__(self, debug: bool = False) -> None:
@@ -57,6 +90,7 @@ class App(tk.Tk):
                       ("states", "elements", "paths", "high", "medium", "low")}
 
         self._build()
+        self._place_on_screen()
         setup(debug=debug, gui_callback=self._log_from_logger)
         log.info("%s ready. Output folder: %s", paths.APP_NAME, paths.APP_DIR)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -172,6 +206,34 @@ class App(tk.Tk):
         for tag, colour in (("INFO", "#dce3ea"), ("WARNING", "#e3b341"),
                             ("ERROR", "#f85149"), ("DEBUG", "#7d8590")):
             self.text.tag_configure(tag, foreground=colour)
+
+    def _place_on_screen(self) -> None:
+        """Fit the window to the screen and put it in front of the launcher.
+
+        Without this, a window sized for a big display can end up taller than
+        the work area, or open behind the Explorer window that launched it -
+        which users reasonably report as "it doesn't open".
+        """
+        try:
+            self.update_idletasks()
+            sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+            want_w, want_h = 820, 900
+            w = min(want_w, max(700, sw - 80))
+            h = min(want_h, max(620, sh - 120))
+            x = max(0, (sw - w) // 2)
+            y = max(0, (sh - h) // 3)
+            self.geometry(f"{w}x{h}+{x}+{y}")
+            self.deiconify()
+            self.lift()
+            self.attributes("-topmost", True)
+            # Drop topmost again straight away: we only wanted to win the raise.
+            self.after(400, lambda: self.attributes("-topmost", False))
+            try:
+                self.focus_force()
+            except Exception:
+                pass
+        except Exception as exc:
+            log.debug("Could not position the window: %s", exc)
 
     # ---------------------------------------------------------------- engine
     def _ensure_engine(self) -> Engine:
@@ -430,6 +492,11 @@ class App(tk.Tk):
 
 
 def run(debug: bool = False) -> int:
+    if focus_existing_window():
+        # Already running: raise that window rather than starting a second copy
+        # that would fight over the same output files.
+        print(f"{paths.APP_NAME} is already running - bringing that window to the front.")
+        return 0
     app = App(debug=debug)
     app.mainloop()
     return 0

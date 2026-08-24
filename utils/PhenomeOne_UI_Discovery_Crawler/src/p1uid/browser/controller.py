@@ -68,6 +68,7 @@ class Engine:
         self._busy = False
         self._observe_script_added = False
         self.crawl_active = False
+        self._cancel_manual = False
 
     # ------------------------------------------------------------ plumbing
     def emit(self, **payload: Any) -> None:
@@ -101,7 +102,9 @@ class Engine:
             self.emit(type="error", op=op, msg="engine is not running")
             return
 
-        exclusive = op not in ("stop_training", "shutdown")
+        # A manual-login wait is a wait, not an operation: it must not lock the
+        # buttons out for its whole (up to ten minute) duration.
+        exclusive = op not in ("stop_training", "shutdown", "manual_login")
 
         async def runner() -> None:
             if exclusive and self._busy:
@@ -127,8 +130,64 @@ class Engine:
         return fut.result(timeout)
 
     # ------------------------------------------------------------- browser
+    async def _teardown(self) -> None:
+        """Drop a dead browser so the next operation can start a fresh one."""
+        self.trainer = None
+        self.crawl_active = False
+        self._observe_script_added = False
+        for attr in ("context", "browser"):
+            obj = getattr(self, attr, None)
+            if obj is not None:
+                try:
+                    await obj.close()
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+        if self.playwright is not None:
+            try:
+                await self.playwright.stop()
+            except Exception:
+                pass
+            self.playwright = None
+        self.page = None
+
+    async def _revive(self) -> bool:
+        """True if the existing browser is still usable, opening a tab if needed.
+
+        A user closing the browser window is normal, not an error - but every
+        later call would raise TargetClosedError unless we notice and rebuild.
+        """
+        if self.context is None:
+            return False
+        if self.browser is not None and not self.browser.is_connected():
+            log.warning("The browser had been closed; starting a new one")
+            await self._teardown()
+            self.emit(type="status", browser=False)
+            return False
+        if self.page is None or self.page.is_closed():
+            try:
+                self.page = await self.context.new_page()
+                self.page.on("close", lambda _p: self.emit(type="page-closed"))
+                if self.base_url:
+                    # Land back on the application rather than about:blank, so the
+                    # next Scan has something real to look at.
+                    try:
+                        await self.page.goto(self.base_url, wait_until="domcontentloaded",
+                                             timeout=30000)
+                    except Exception:
+                        pass
+                log.info("The page had been closed; opened a fresh tab%s",
+                         f" at {self.base_url}" if self.base_url else "")
+                return True
+            except Exception:
+                log.warning("The browser context is no longer usable; restarting the browser")
+                await self._teardown()
+                self.emit(type="status", browser=False)
+                return False
+        return True
+
     async def ensure_browser(self) -> None:
-        if self.context is not None:
+        if self.context is not None and await self._revive():
             return
         # PLAYWRIGHT_BROWSERS_PATH must be set before Playwright is imported so
         # the bundled browser folder is the one that gets used.
@@ -164,9 +223,11 @@ class Engine:
         )
         await self.context.expose_binding(BINDING, self._on_binding)
         await self.context.add_init_script(script=CORE_JS)
-        self.context.on("page", self._on_new_page)
         self.page = await self.context.new_page()
         self.page.on("close", lambda _p: self.emit(type="page-closed"))
+        # Registered only now: otherwise our own first tab fires the popup
+        # handler and logs a confusing "new browser tab detected".
+        self.context.on("page", self._on_new_page)
         log.info("Browser started in %.1f s%s", time.perf_counter() - t0,
                  " (reusing saved session)" if storage else "")
         self.emit(type="status", browser=True)
@@ -206,6 +267,7 @@ class Engine:
     # ---------------------------------------------------------------- auth
     async def op_login(self, url: str, username: str, password: str) -> None:
         register_secret(password)
+        self._cancel_manual = True          # supersede any manual-login wait
         await self.open_url(url)
 
         # The form may render after load, or sit inside an identity-provider
@@ -254,11 +316,45 @@ class Engine:
 
     async def op_manual_login(self, url: str, timeout_s: int = 600) -> None:
         await self.open_url(url)
-        log.info("Manual Login: complete the sign-in in the browser window (waiting up to %d s)", timeout_s)
-        self.emit(type="status", auth="Waiting for manual login...")
-        if not await auth_login.wait_until_no_password(self.page, timeout_s):
-            log.warning("Manual login not detected within the time limit; the browser stays open")
-            self.emit(type="status", auth="Manual login not confirmed")
+        self._cancel_manual = False
+        self.emit(type="status", auth="Waiting for the sign-in form...")
+
+        # A password field must be SEEN before its absence can mean "signed in".
+        # Without this, a slow SPA that has not yet rendered its login form
+        # reports success one second after the page loads.
+        frame, _fields = await auth_login.find_login_form(self.page, timeout_s=self.login_wait_s)
+        if frame is None:
+            if await auth_login.looks_authenticated(self.page):
+                self.authenticated = True
+                log.info("No sign-in form appeared and the application is rendering - "
+                         "treating this session as already authenticated")
+                await self._maybe_save_session()
+                self.emit(type="status", auth="Connected (existing session)")
+                return
+            log.warning("No sign-in form appeared within %.0f s. If sign-in happens on another "
+                        "site or needs longer, complete it in the browser window and press "
+                        "Manual Login again.", self.login_wait_s)
+            log.warning("Page diagnostics:\n%s", await auth_login.describe_page(self.page))
+            self.emit(type="status", auth="No sign-in form detected")
+            return
+
+        log.info("Sign-in form is on screen - complete it in the browser window "
+                 "(waiting up to %d s)", timeout_s)
+        self.emit(type="status", auth="Waiting for you to sign in...")
+        ok = await auth_login.wait_until_no_password(
+            self.page, timeout_s, should_cancel=lambda: self._cancel_manual)
+
+        if self.page is None or self.page.is_closed():
+            log.warning("The browser page was closed before sign-in completed")
+            self.emit(type="status", auth="Browser closed before sign-in")
+            return
+        if not ok:
+            if self._cancel_manual:
+                log.info("Manual login wait cancelled")
+                self.emit(type="status", auth="Manual login cancelled")
+            else:
+                log.warning("Manual login not detected within the time limit; the browser stays open")
+                self.emit(type="status", auth="Manual login not confirmed")
             return
         self.authenticated = True
         log.info("Authentication successful (manual)")
