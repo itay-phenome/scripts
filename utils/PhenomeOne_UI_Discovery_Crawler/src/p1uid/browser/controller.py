@@ -65,6 +65,7 @@ class Engine:
         self.authenticated = False
         self._busy = False
         self._observe_script_added = False
+        self.crawl_active = False
 
     # ------------------------------------------------------------ plumbing
     def emit(self, **payload: Any) -> None:
@@ -169,6 +170,11 @@ class Engine:
         self.emit(type="status", browser=True)
 
     def _on_new_page(self, page: Any) -> None:
+        if self.crawl_active:
+            # During an autonomous crawl a popup is an incident, not a place to
+            # go: the crawler's own handler closes it. Never retarget here.
+            self.emit(type="log-info", msg="Popup appeared during the crawl; it will be closed")
+            return
         # A popup / new tab becomes the active page for observation.
         self.page = page
         self.emit(type="log-info", msg="New browser tab detected; observing it")
@@ -326,6 +332,34 @@ class Engine:
                  summary.get("statesSeen", 0), summary.get("navigationPaths", 0),
                  summary.get("elementsSeen", 0))
         self.emit(type="training", active=False, summary=summary, counts=self.store.counts())
+
+    # -------------------------------------------------------- safe crawl
+    async def op_crawl(self, limits: Any = None) -> None:
+        """Autonomous, read-only exploration (Safe Crawl)."""
+        from ..crawler.bfs import CrawlLimits, SafeCrawler
+
+        await self.ensure_browser()
+        if self.trainer is not None:
+            self.emit(type="error", op="crawl", msg="stop training before crawling")
+            return
+        if self.page is None or self.page.is_closed():
+            self.emit(type="error", op="crawl", msg="no open page to crawl from")
+            return
+        if not self.base_url:
+            self.base_url = self.page.url
+
+        crawler = SafeCrawler(self, self.store, limits or CrawlLimits())
+        self.crawl_active = True
+        self.emit(type="crawl", active=True)
+        try:
+            result = await crawler.run()
+        finally:
+            self.crawl_active = False
+        self.store.save()
+        _write_json(paths.CRAWL_SUMMARY_FILE, result.to_json())
+        self._write_outputs()
+        self.emit(type="crawl", active=False, summary=result.to_json(),
+                  counts=self.store.counts())
 
     # -------------------------------------------------------------- output
     def _write_outputs(self, training_summary: dict[str, Any] | None = None) -> None:

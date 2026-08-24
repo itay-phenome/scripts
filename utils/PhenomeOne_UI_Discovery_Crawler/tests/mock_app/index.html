@@ -89,8 +89,18 @@ function showLoginForm() {
   document.getElementById("login-view").style.display = "";
 }
 
-// Boot: optionally slow, optionally behind a landing page.
+function enterApp() {
+  document.getElementById("landing-view").classList.add("hidden");
+  $("#login-view").classList.add("hidden");
+  $("#login-view").style.display = "none";
+  $("#app-view").classList.remove("hidden");
+  document.title = "PhenomeOne - Home";
+  go("/app/", "home");
+}
+
+// Boot: already signed in? go straight in, like a returning session.
 setTimeout(() => {
+  if (isAuthed()) { enterApp(); return; }
   if (LANDING) {
     document.getElementById("landing-view").classList.remove("hidden");
     document.getElementById("landing-signin").addEventListener("click", showLoginForm);
@@ -99,6 +109,48 @@ setTimeout(() => {
   }
 }, BOOT_DELAY);
 
+/* ---------------------------------------------- side-effect ledger
+   Records anything a destructive control would have done. Kept in
+   sessionStorage so it survives reloads and navigations, which is exactly what
+   the crawler does. A safe crawl must leave this list EMPTY. */
+const SFX_KEY = "p1uidSideEffects";
+function sideEffect(what) {
+  try {
+    const a = JSON.parse(sessionStorage.getItem(SFX_KEY) || "[]");
+    a.push(what);
+    sessionStorage.setItem(SFX_KEY, JSON.stringify(a));
+  } catch (e) { }
+}
+Object.defineProperty(window, "__sideEffects", {
+  get() { try { return JSON.parse(sessionStorage.getItem(SFX_KEY) || "[]"); } catch (e) { return []; } }
+});
+
+const DANGER_RE = /delete|remove|save|submit|import|execute|archive|publish|approve|reject|reset|send|log ?out|sign ?out|recalculate|download|email|run query/i;
+
+// Capture phase, before any app handler: if a destructive control is activated,
+// it is recorded no matter what else happens.
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("button,a,[role=button],input[type=submit],input[type=reset]");
+  if (!el) return;
+  const label = el.getAttribute("aria-label") || el.value || el.textContent || "";
+  if (DANGER_RE.test(label)) sideEffect("click:" + label.trim().slice(0, 40));
+}, true);
+
+// A real form submission would hit the server: record it and stop it, so the
+// test can see it happened without the mock navigating away.
+document.addEventListener("submit", (e) => {
+  if (e.target.id === "login-form") return;             // the login form is legitimate
+  e.preventDefault();
+  sideEffect("submit:" + (e.target.getAttribute("action") || "(same url)"));
+}, true);
+
+/* --------------------------------------------------- session state
+   A real app keeps a cookie, so reloading the root stays signed in. The mock
+   mirrors that with sessionStorage - without it, every crawler replay would
+   land back on the login form. */
+const AUTH_KEY = "p1uidMockAuth";
+const isAuthed = () => sessionStorage.getItem(AUTH_KEY) === "1";
+
 const $ = (s) => document.querySelector(s);
 const main = () => $("#main");
 
@@ -106,10 +158,8 @@ const main = () => $("#main");
 $("#login-form").addEventListener("submit", (e) => {
   e.preventDefault();
   if (!$("#user").value || !$("#pw").value) { $("#login-error").classList.remove("hidden"); return; }
-  $("#login-view").classList.add("hidden");
-  $("#app-view").classList.remove("hidden");
-  document.title = "PhenomeOne - Home";
-  go("/app/", "home");
+  sessionStorage.setItem(AUTH_KEY, "1");
+  enterApp();
   if (AUTODRIVE) autodrive();
 });
 
@@ -304,6 +354,11 @@ function autodrive() {
 // A native confirm() blocks the page until answered - a crawler must never
 // reach this. Guarded by the classifier, proven by tests.
 document.addEventListener("click", (e) => {
+  if (e.target.closest("[data-testid=admin-logout]")) {
+    sessionStorage.removeItem(AUTH_KEY);
+    location.href = "/app/";
+    return;
+  }
   if (e.target.closest("[data-testid=admin-confirm-delete]")) {
     const ok = window.confirm("Delete ALL observations? This cannot be undone.");
     document.getElementById("admin-confirm-result").textContent = ok ? "DELETED" : "cancelled";
