@@ -273,12 +273,13 @@ function linkInfo(el) {
   const raw = el.getAttribute('href') || '';
   const m = raw.match(/^([a-z][a-z0-9+.\-]*):/i);
   let scheme = m ? m[1].toLowerCase() : location.protocol.replace(':', '');
-  let sameOrigin = false, pathname = '', origin = '';
+  let sameOrigin = false, pathname = '', origin = '', search = '';
   try {
     const u = new URL(raw, location.href);
     origin = u.origin;
     sameOrigin = u.origin === location.origin;
     pathname = u.pathname + (u.hash || '');
+    search = u.search || '';
   } catch (e) { /* opaque scheme */ }
   return {
     raw: clip(raw, 140),
@@ -286,6 +287,7 @@ function linkInfo(el) {
     origin: clip(origin, 80),
     sameOrigin: sameOrigin,
     pathname: clip(pathname, 120),
+    search: clip(search, 160),
     download: el.hasAttribute('download'),
     fileLike: FILE_HREF.test(raw),
     target: clip(el.getAttribute('target') || '', 20),

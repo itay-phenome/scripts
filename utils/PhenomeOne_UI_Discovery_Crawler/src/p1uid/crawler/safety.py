@@ -53,6 +53,7 @@ FLAG_FORM_SUBMIT = "form-submit"
 FLAG_FORM_RESET = "form-reset"
 FLAG_POST = "post-request"
 FLAG_DANGEROUS_VERB = "dangerous-verb"
+FLAG_DANGEROUS_QUERY = "dangerous-query"
 FLAG_HIDDEN = "not-visible"
 FLAG_DISABLED = "disabled"
 FLAG_UNLABELLED = "unlabelled"
@@ -62,7 +63,8 @@ FLAG_AUTH = "leaves-session"
 BLOCKING_FLAGS = frozenset({
     FLAG_DOWNLOAD, FLAG_MAILTO, FLAG_JAVASCRIPT, FLAG_BLOB, FLAG_DATA_URL,
     FLAG_EXTERNAL_SCHEME, FLAG_CROSS_ORIGIN, FLAG_NEW_TAB, FLAG_FORM_SUBMIT,
-    FLAG_FORM_RESET, FLAG_POST, FLAG_DANGEROUS_VERB, FLAG_HIDDEN, FLAG_DISABLED,
+    FLAG_FORM_RESET, FLAG_POST, FLAG_DANGEROUS_VERB, FLAG_DANGEROUS_QUERY,
+    FLAG_HIDDEN, FLAG_DISABLED,
     FLAG_AUTH,
 })
 
@@ -176,8 +178,35 @@ def _labels(el: dict[str, Any]) -> list[str]:
         attrs.get("data-testid"), attrs.get("data-test"), attrs.get("data-cy"),
         attrs.get("data-qa"), attrs.get("name"),
         (el.get("link") or {}).get("pathname"),
+        (el.get("link") or {}).get("search"),
+        el.get("formAction"),
     ]
     return [str(s) for s in out if s]
+
+
+# Parameter names that carry a command rather than a filter.
+_COMMAND_PARAM = re.compile(r"^(action|act|op|operation|do|cmd|command|method|task|mode|"
+                            r"event|func|fn|verb|exec|run|type)$", re.I)
+
+
+def _query_danger(search: str) -> tuple[str, str]:
+    """(matched, why) when a query string carries a destructive command."""
+    if not search:
+        return "", ""
+    for pair in search.lstrip("?").split("&"):
+        if not pair:
+            continue
+        key, _, value = pair.partition("=")
+        key, value = key.strip(), value.strip()
+        hit = _DANGEROUS_RE.search(value)
+        if hit and (_COMMAND_PARAM.match(key) or not key):
+            return hit.group(0), f"query parameter {key or '(bare)'}={value!r} is a command"
+        if hit:
+            return hit.group(0), f"query parameter {key}={value!r} contains {hit.group(0)!r}"
+        khit = _DANGEROUS_RE.search(key)
+        if khit:
+            return khit.group(0), f"query parameter name {key!r} is destructive"
+    return "", ""
 
 
 def _url_flags(el: dict[str, Any], origin: str) -> tuple[list[str], list[str]]:
@@ -219,6 +248,11 @@ def _url_flags(el: dict[str, Any], origin: str) -> tuple[list[str], list[str]]:
             and scheme in ALLOWED_URL_SCHEMES:
         flags.append(FLAG_CROSS_ORIGIN)
         reasons.append(f"origin {link['origin']} differs from {origin}")
+
+    matched, why = _query_danger(link.get("search") or "")
+    if matched:
+        flags.append(FLAG_DANGEROUS_QUERY)
+        reasons.append(why)
 
     target = (link.get("target") or "").lower()
     if target and target not in ("_self", "_top", "_parent"):
@@ -295,7 +329,8 @@ def _classify(el: dict[str, Any], origin: str = "") -> Verdict:
                         flags, auth.group(0))
 
     # ---- 2. structural writes beat any label ------------------------------
-    for flag, why in ((FLAG_POST, "issues a POST"),
+    for flag, why in ((FLAG_DANGEROUS_QUERY, "the URL carries a destructive command"),
+                      (FLAG_POST, "issues a POST"),
                       (FLAG_FORM_SUBMIT, "submits a form"),
                       (FLAG_FORM_RESET, "resets a form")):
         if flag in flags:

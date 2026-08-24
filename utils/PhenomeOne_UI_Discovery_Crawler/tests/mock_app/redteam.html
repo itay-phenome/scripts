@@ -1,0 +1,173 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Red team surface</title>
+<style>
+ body{font:14px/1.5 Segoe UI,sans-serif;margin:0;padding:16px 20px;color:#222}
+ h1{font-size:20px}h2{font-size:15px;margin-top:22px;border-bottom:1px solid #ddd}
+ button,a{margin:2px}
+ dialog{border:1px solid #999;border-radius:6px;padding:16px}
+ iframe{border:1px solid #ccc;width:400px;height:150px}
+ .hidden{display:none}
+ #ledger{font:12px ui-monospace,Consolas,monospace;color:#b00;white-space:pre-wrap}
+</style>
+
+<!-- Adversarial surface for the Safe Crawl red-team test. Every control here is
+     designed to trick the classifier or trap the crawler. Nothing on this page
+     is allowed to be clicked automatically except the plainly-safe navigation. -->
+
+<main role="main">
+<h1 id="title">Red Team</h1>
+<p>state: <span id="state">start</span></p>
+<div id="ledger"></div>
+
+<h2>1. Destructive commands hidden in the URL</h2>
+<a href="?action=delete&id=7" data-testid="rt-q-delete">Open record</a>
+<a href="?op=archive" data-testid="rt-q-archive">Details</a>
+<a href="?do=logout" data-testid="rt-q-logout">Continue</a>
+<a href="?cmd=save&x=1" data-testid="rt-q-save">View</a>
+<a href="?method=DELETE" data-testid="rt-q-method">More</a>
+<a href="?tab=overview&sort=name&page=3" data-testid="rt-q-benign">Overview (benign query)</a>
+
+<h2>2. Loops</h2>
+<a href="#loop-a" data-testid="rt-loop-a" onclick="setState('loop-a')">Go to A</a>
+<a href="#loop-b" data-testid="rt-loop-b" onclick="setState('loop-b')">Go to B</a>
+<a href="?n=1" data-testid="rt-infinite">Next page of infinity</a>
+
+<h2>3. Popup and download traps (safe-looking labels)</h2>
+<button data-testid="rt-popup" onclick="openPopup()">View report</button>
+<button data-testid="rt-jsdownload" onclick="jsDownload()">View statement</button>
+<a href="#" data-testid="rt-blobnav" onclick="blobNav(); return false;">Open viewer</a>
+
+<h2>4. Dialog behind a safe-looking control</h2>
+<button data-testid="rt-open-dialog" onclick="document.getElementById('dlg').showModal()">View details</button>
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <h2 id="dlg-title">Record details</h2>
+  <form method="post" action="/api/save">
+    <label for="dlg-name">Name</label><input id="dlg-name" name="name">
+    <button data-testid="rt-dialog-save">Save</button>
+    <button type="button" data-testid="rt-dialog-ok">OK</button>
+    <button type="button" aria-label="Close dialog" onclick="document.getElementById('dlg').close()">&times;</button>
+  </form>
+</dialog>
+
+<h2>5. Ambiguous locators</h2>
+<div id="ambiguous">
+  <button>Open</button><button>Open</button><button>Open</button>
+  <button>Open</button><button>Open</button><button>Open</button>
+</div>
+
+<h2>6. Controls that rename themselves every render</h2>
+<div id="dynamic"></div>
+<button data-testid="rt-rerender" onclick="renderDynamic()">Show more</button>
+
+<h2>7. Nested iframes</h2>
+<iframe src="outer_frame.html" title="Outer widget"></iframe>
+
+<h2>8. Unlabelled controls</h2>
+<button data-testid="rt-icon"><span aria-hidden="true">&#9881;</span></button>
+<div role="button" tabindex="0" data-testid="rt-div-button"></div>
+<div onclick="sideEffect('click:opaque-div')" data-testid="rt-opaque">&nbsp;</div>
+</main>
+
+<script>
+/* ---- side-effect ledger: a safe crawl must leave this empty ---- */
+const KEY = "rtSideEffects";
+function sideEffect(what) {
+  try {
+    const a = JSON.parse(sessionStorage.getItem(KEY) || "[]");
+    a.push(what);
+    sessionStorage.setItem(KEY, JSON.stringify(a));
+    document.getElementById("ledger").textContent = "SIDE EFFECTS: " + a.join(", ");
+  } catch (e) { }
+}
+Object.defineProperty(window, "__sideEffects", {
+  get() { try { return JSON.parse(sessionStorage.getItem(KEY) || "[]"); } catch (e) { return []; } }
+});
+
+/* Benign but notable: opening a popup or attempting a download changes no data,
+   but the crawler must still handle it. Kept apart from the destructive ledger
+   so a test can never pass by conflating the two. */
+const OBS = "rtObserved";
+function observed(what) {
+  try {
+    const a = JSON.parse(sessionStorage.getItem(OBS) || "[]");
+    a.push(what);
+    sessionStorage.setItem(OBS, JSON.stringify(a));
+  } catch (e) { }
+}
+Object.defineProperty(window, "__observed", {
+  get() { try { return JSON.parse(sessionStorage.getItem(OBS) || "[]"); } catch (e) { return []; } }
+});
+
+/* A destructive command in the URL must never be reached. If it is, record it. */
+(function checkQuery() {
+  const q = new URLSearchParams(location.search);
+  for (const [k, v] of q.entries()) {
+    if (/^(action|op|do|cmd|method|task)$/i.test(k)) sideEffect("url:" + k + "=" + v);
+  }
+  if (q.has("n")) {
+    // An unbounded state generator: each click makes a "new" page.
+    document.getElementById("state").textContent = "page-" + q.get("n");
+    const next = parseInt(q.get("n"), 10) + 1;
+    const a = document.querySelector("[data-testid=rt-infinite]");
+    if (a) a.setAttribute("href", "?n=" + next);
+  }
+})();
+
+function setState(s) { document.getElementById("state").textContent = s; }
+
+function openPopup() {
+  // Safe-looking label, opens a new browsing context.
+  observed("popup-opened");
+  window.open("outer_frame.html", "_blank", "width=400,height=300");
+}
+
+function jsDownload() {
+  // Safe-looking label, triggers a programmatic download.
+  observed("download-triggered");
+  const blob = new Blob(["id,name\n1,x\n"], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "statement.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function blobNav() {
+  observed("blob-navigation");
+  const blob = new Blob(["<h1>archive</h1>"], { type: "text/html" });
+  location.href = URL.createObjectURL(blob);
+}
+
+/* Controls whose accessible name changes on every render: no stable locator. */
+let renders = 0;
+function renderDynamic() {
+  renders++;
+  const host = document.getElementById("dynamic");
+  host.innerHTML = "";
+  for (let i = 0; i < 3; i++) {
+    const b = document.createElement("button");
+    const n = Math.floor(Math.random() * 1e6);
+    b.id = "dyn-" + n;
+    b.textContent = "Item " + n;
+    b.setAttribute("data-render", String(renders));
+    host.appendChild(b);
+  }
+}
+renderDynamic();
+
+/* Dialog form must never be submitted. */
+document.addEventListener("submit", (e) => {
+  e.preventDefault();
+  sideEffect("submit:" + (e.target.getAttribute("action") || "?"));
+}, true);
+
+const DANGER = /delete|remove|save|submit|import|execute|archive|publish|approve|reject|reset|send|log ?out|sign ?out/i;
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("button,a,[role=button],input");
+  if (!el) return;
+  const label = el.getAttribute("aria-label") || el.value || el.textContent || "";
+  if (DANGER.test(label)) sideEffect("click:" + label.trim().slice(0, 40));
+}, true);
+</script>

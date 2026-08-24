@@ -50,6 +50,10 @@ class CrawlLimits:
     time_budget_s: float = 300.0
     click_timeout_ms: int = 5000
     settle_timeout_ms: int = 4000
+    # A global control (the "Home" link in the banner, say) exists in every
+    # state. Clicking it from all of them costs O(states^2) clicks and teaches
+    # nothing new after the first few, so cap how often one control is retried.
+    max_repeats_per_element: int = 3
 
 
 @dataclass
@@ -64,6 +68,7 @@ class CrawlResult:
     replays: int = 0
     back_navigations: int = 0
     skipped: dict[str, int] = field(default_factory=dict)
+    inert_elements: int = 0
     incidents: list[dict[str, Any]] = field(default_factory=list)
     aborted: str = ""
     limit_hit: str = ""
@@ -82,6 +87,7 @@ class CrawlResult:
             "replays": self.replays,
             "backNavigations": self.back_navigations,
             "skippedByReason": self.skipped,
+            "inertElements": self.inert_elements,
             "classificationTotals": self.classification_totals,
             "incidents": self.incidents,
             "abortedBecause": self.aborted,
@@ -112,6 +118,8 @@ class SafeCrawler:
         self._start = 0.0
         self._poison: set[tuple[str, str]] = set()      # (state, element) never to click again
         self._tried: set[tuple[str, str]] = set()
+        self._clicks_per_element: dict[str, int] = {}
+        self._noop_elements: set[str] = set()      # never changed state anywhere
         self._dialog_seen: list[str] = []
         self._page = None
         self._handlers: list[tuple[str, Any]] = []
@@ -201,6 +209,14 @@ class SafeCrawler:
             if key in seen:
                 continue
             seen.add(key)
+            if key in self._noop_elements:
+                # Proven inert elsewhere (a "Refresh" that redraws the same
+                # state): clicking it again cannot discover anything.
+                self._skip("known-no-op")
+                continue
+            if self._clicks_per_element.get(key, 0) >= self.limits.max_repeats_per_element:
+                self._skip("repeat-limit")
+                continue
             out.append(_Candidate(key, el, loc, frame, verdict))
         out.sort(key=lambda c: (_TYPE_ORDER.get(c.element.get("type", ""), 9),
                                (c.element.get("name") or "").lower(), c.key))
@@ -280,15 +296,24 @@ class SafeCrawler:
         return None
 
     async def _session_lost(self) -> bool:
+        """A login form is only a lost session if the app has stopped rendering.
+
+        An embedded sign-in widget (an identity-provider iframe on a settings
+        page, say) must not abort a crawl that is still perfectly authenticated.
+        """
         from ..auth import login as auth_login
         try:
+            found = False
             for frame in list(self._page.frames):
                 fields = await auth_login.read_fields(frame)
                 if any(f["type"] == "password" and f["visible"] for f in fields.get("inputs", [])):
-                    return True
+                    found = True
+                    break
+            if not found:
+                return False
+            return not await auth_login.looks_authenticated(self._page)
         except Exception:
             return False
-        return False
 
     # ------------------------------------------------------------------ run
     async def run(self, start_url: str = "") -> CrawlResult:
@@ -308,6 +333,7 @@ class SafeCrawler:
             await self._crawl()
         finally:
             self._remove_guards(self._page)
+            self.result.inert_elements = len(self._noop_elements)
             self.result.duration_s = time.monotonic() - self._start
 
         log.info("Safe Crawl finished: %d states (%d new), %d actions clicked, %d new paths%s",
@@ -421,6 +447,7 @@ class SafeCrawler:
                 return "skipped"
             await handle.first.click(timeout=self.limits.click_timeout_ms)
             self.result.actions_clicked += 1
+            self._clicks_per_element[cand.key] = self._clicks_per_element.get(cand.key, 0) + 1
         except Exception as exc:
             self._skip("click-failed")
             log.debug("Click failed on %s: %s", cand.locator.js, type(exc).__name__)
@@ -460,6 +487,9 @@ class SafeCrawler:
         dest = res.state_id
         if dest == state_id:
             self._skip("no-state-change")
+            # Inert here; assume inert everywhere until proven otherwise. This
+            # is what removes the bulk of a naive BFS's wasted clicks.
+            self._noop_elements.add(cand.key)
         else:
             action = {
                 "type": cand.element.get("type") or "click",

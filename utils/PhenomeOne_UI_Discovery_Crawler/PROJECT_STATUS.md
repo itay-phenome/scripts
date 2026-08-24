@@ -5,12 +5,13 @@
 | | |
 |---|---|
 | Last updated | 2026-08-24 |
-| Version | 1.1.0 (V1 + autonomous discovery) |
+| Version | 1.1.1 (V1 + autonomous discovery + live-environment hardening) |
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` (uncommitted, nothing pushed) |
-| Build output | `C:\Users\itay-b\p1uid-final\PhenomeOne-UI-Discovery\` (555 MB) |
+| Build output | `C:\Users\itay-b\p1uid-final2\PhenomeOne-UI-Discovery\` (555 MB) |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **311/311 passing** — 281 source + 30 packaged |
+| Tests | **326/326 passing** — 296 source + 30 packaged |
 | Blocked on | **EKS-LAB / real PhenomeOne validation — no credentials in this session** |
+| First real run | 2026-08-24 against `eksdemo-helm.phenome-networks.com`: exposed 4 bugs, all fixed (see §2.7) |
 
 ---
 
@@ -89,6 +90,25 @@ and Playwright locator validation.
 * CLI gate `--fail-on-low N` → exit **4**. Exit codes: 0 ok · 2 bad args ·
   3 not authenticated · 4 CI gate · 5 diff found changes.
 
+### Phase 7 — Live-environment hardening (from the first real PhenomeOne run)
+
+The first run against `eksdemo-helm.phenome-networks.com` produced four failures.
+All are fixed and covered by `tests/test_recovery.py` (15 checks):
+
+| Symptom in the live log | Cause | Fix |
+|---|---|---|
+| "Authentication successful (manual)" 1 s after load | the SPA had not rendered its login form, so "no password field" read as "signed in" | Manual Login now waits for the form to **appear** before its disappearance can mean success; if none appears it probes for app markers and says "existing session" or "no sign-in form detected" + diagnostics |
+| `TargetClosedError` on every action after the browser was closed | the engine kept a dead handle | `_revive()`/`_teardown()`: a closed tab gets a fresh one (navigated back to the app), a closed browser is relaunched |
+| `login: another operation is still running` | the 600 s manual-login wait held the exclusive lock | `manual_login` is non-exclusive, and pressing LOGIN cancels the wait |
+| "New browser tab detected; observing it" at startup | our own first tab fired the popup handler | the `page` listener is registered after the first tab exists |
+
+Also fixed while in there:
+* **GUI single instance** — a second launch raises the existing window and exits
+  instead of starting a rival copy behind it ("the app doesn't open").
+* **Window placement** — the window is clamped to the work area and raised to
+  the front on startup.
+* **No blank states** — `about:blank`/error pages are never recorded as UI states.
+
 ---
 
 ## 3. Test status
@@ -101,11 +121,12 @@ Run from the source directory (`python tests/<name>.py`).
 | `test_safety.py` | 103 | classifier: 69 unit + 34 live on the hardened mock |
 | `test_crawler.py` | 22 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_pipeline.py` | 50 | workflows, UI diff, codegen, JUnit, CI exit codes |
+| `test_recovery.py` | 15 | the four live-environment failures above |
 | `test_e2e_mock.py` | 30 | login → scan → training → outputs |
 | `test_login_variants.py` | 8 | slow form, iframe IdP form, landing page, no form |
 | `test_gui_smoke.py` | 21 | real Tk window driving the real browser |
 | `test_packaged.py` | 30 | relocated frozen build in a stripped environment |
-| **Total** | **311** | all passing as of this update |
+| **Total** | **326** | all passing as of this update |
 
 `test_packaged.py` takes a path: `python tests/test_packaged.py <dist>/PhenomeOne-UI-Discovery`.
 It **moves** the folder (relocation test), so pass the current location.
@@ -121,9 +142,10 @@ It **moves** the folder (relocation test), so pass the current location.
 ## 4. Remaining work
 
 ### Blocked — needs real access (do this first next session)
-1. **EKS-LAB / PhenomeOne validation.** Everything above is verified against
-   `tests/mock_app` only. Needed: a URL + credentials for a **non-production**
-   instance. Then:
+1. **EKS-LAB / PhenomeOne validation.** Still the main gap: only the login path
+   has ever touched the real app (one run, 2026-08-24), and it found four bugs
+   within 30 seconds - expect more. Needed: a URL + credentials for a
+   **non-production** instance. Then:
    * `PhenomeOne-UI-Discovery.exe` → LOGIN (or Manual Login) → SCAN → TRAINING.
    * Check `logs/discovery.log` for the login diagnostics block if login fails.
    * Only after a clean manual pass, try **SAFE CRAWL** with a small budget
@@ -133,21 +155,25 @@ It **moves** the folder (relocation test), so pass the current location.
    so expect *under*-exploration first. Add real labels to
    `_DANGEROUS_WORDS` / `_NAV_WORDS` in `crawler/safety.py`.
 3. **Confirm the long-path limit** on the target workstation (`C:\Tools\` is safe).
+4. **Stale build folders on this machine** — `C:\Users\itay-b\p1uid-build`
+   (broken, no exe), `p1uid-build-v2` (v1.0.0) and `p1uid-final` (v1.1.0) are all
+   superseded by `p1uid-final2`. Delete the first three to avoid clicking a dead
+   folder.
 
 ### Not blocked — next code steps
-4. **Crawl performance**: validation is ~9 ms/element and replays cost 1–2 s.
+5. **Crawl performance**: validation is ~9 ms/element and replays cost 1–2 s.
    Options: cache validation per (state, element) across hops; prefer `go_back()`
    more aggressively; parallelise validation.
-5. **CONDITIONAL opt-in**: the crawler currently clicks SAFE_NAVIGATION only.
+6. **CONDITIONAL opt-in**: the crawler currently clicks SAFE_NAVIGATION only.
    A `--allow-conditional` flag (dialog openers, expanders in forms) would widen
    coverage; must stay off by default.
-6. **Workflow replay**: workflows are recorded but not replayed. `goToState()` in
+7. **Workflow replay**: workflows are recorded but not replayed. `goToState()` in
    the generated `navigation.ts` is the obvious foundation.
-7. **`codegen` uses `eval()`** in `goToState()` to turn a stored locator string
+8. **`codegen` uses `eval()`** in `goToState()` to turn a stored locator string
    into a Locator. Fine for generated internal helpers, but worth replacing with
    a structured switch over `locatorSpec.args`.
-8. **Jenkinsfile** — not written. The CLI + JUnit XML are ready for it.
-9. **GUI crawl budget controls** — currently uses defaults; the CLI exposes them.
+9. **Jenkinsfile** — not written. The CLI + JUnit XML are ready for it.
+10. **GUI crawl budget controls** — currently uses defaults; the CLI exposes them.
 
 ---
 

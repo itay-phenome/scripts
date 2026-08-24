@@ -48,6 +48,15 @@ def _const(text: str, fallback: str = "STATE") -> str:
     return ("_".join(p.upper() for p in parts) or fallback)[:60]
 
 
+def _class_name(sid: str) -> str:
+    """`research-group-germplasms` -> `ResearchGroupGermplasms`."""
+    parts = [p for p in _IDENT_BAD.split(sid or "") if p]
+    name = "".join(p[:1].upper() + p[1:] for p in parts) or "State"
+    if not re.match(r"^[A-Za-z_]", name):
+        name = "S" + name
+    return name[:60]
+
+
 def _usable(el: dict[str, Any]) -> bool:
     loc = el.get("locator") or {}
     return bool(loc.get("js")) and el.get("confidence") in ("HIGH", "MEDIUM")
@@ -62,7 +71,8 @@ def generate(ui_map: dict[str, Any], out_dir: Path, nav_graph: dict[str, Any] | 
     out_dir.mkdir(parents=True, exist_ok=True)
     when = time.strftime("%Y-%m-%d %H:%M:%S")
     states: dict[str, Any] = ui_map.get("states") or {}
-    stats = {"states": 0, "locators": 0, "skippedLow": 0, "skippedUnstable": 0, "files": []}
+    stats = {"states": 0, "locators": 0, "skippedLow": 0, "skippedUnstable": 0,
+         "deferredHidden": 0, "files": []}
     skipped: list[str] = []
 
     # ---------------------------------------------------------------- TS map
@@ -71,6 +81,8 @@ def generate(ui_map: dict[str, Any], out_dir: Path, nav_graph: dict[str, Any] | 
     py = [PY_HEADER.format(src=source, when=when),
           "from playwright.sync_api import Page, Locator\n"]
 
+    registry: list[tuple[str, str, str]] = []          # (state id, ts name, py class)
+    deferred: dict[str, list[str]] = {}                # state -> props needing an open surface
     for sid, st in sorted(states.items()):
         els = st.get("elements") or {}
         usable = {k: v for k, v in els.items() if _usable(v)}
@@ -84,10 +96,12 @@ def generate(ui_map: dict[str, Any], out_dir: Path, nav_graph: dict[str, Any] | 
         ts.append(f"\n/** UI state `{sid}` - {label}\n *  route: {route} "
                   f"| seen {st.get('timesSeen', 0)}x */")
         ts.append(f"export const {fn} = (page: Page) => ({{")
-        py.append(f'\n\nclass {_ident(sid, "state").title().replace("_", "")}:')
+        cls = _class_name(sid)
+        registry.append((sid, fn, cls))
+        py.append(f"\n\nclass {cls}:")
         py.append(f'    """UI state `{sid}` - {label} (route: {route})."""\n')
         py.append("    def __init__(self, page: Page) -> None:")
-        py.append("        self.page = page")
+        py.append("        self.page = page\n")
 
         used: set[str] = set()
         for key, el in sorted(usable.items(), key=lambda kv: str(kv[1].get("logicalName"))):
@@ -101,11 +115,19 @@ def generate(ui_map: dict[str, Any], out_dir: Path, nav_graph: dict[str, Any] | 
             if UNSTABLE_FLAG in flags:
                 note = "   // WARNING: this locator has changed between runs"
                 stats["skippedUnstable"] += 1
-            ts.append(f"  /** {el.get('type')} - {el.get('confidence')} */")
+            hidden = loc.get("validation") == "deferred-hidden" or el.get("visible") is False
+            doc = f"{el.get('type')} - {el.get('confidence')}"
+            if hidden:
+                ctx = el.get("context") or {}
+                where = ctx.get("dialog") or ctx.get("menu") or "its container"
+                doc += f" - NOT VISIBLE in this state: open {where} first"
+                stats["deferredHidden"] += 1
+                deferred.setdefault(sid, []).append(_ident(name))
+            ts.append(f"  /** {doc} */")
             ts.append(f"  {name}: (): Locator => {_js_expr(loc)},{note}")
-            py.append(f"    @property")
+            py.append("    @property")
             py.append(f"    def {_ident(name)}(self) -> Locator:")
-            py.append(f'        """{el.get("type")} - {el.get("confidence")}"""')
+            py.append(f'        """{doc}"""')
             py.append(f"        return self.page.{loc.get('python') or loc['js']}")
             stats["locators"] += 1
 
@@ -117,6 +139,35 @@ def generate(ui_map: dict[str, Any], out_dir: Path, nav_graph: dict[str, Any] | 
             stats["skippedLow"] += 1
             skipped.append(f"{sid} / {el.get('logicalName')}: {rec}")
         ts.append("});")
+
+    # A registry so callers can go from a discovered state id straight to its
+    # page object, without reconstructing the generated identifier.
+    ts.append("\n/** Discovered state id -> its locator factory. */")
+    ts.append("export const STATES = {")
+    for sid, fn, _cls in registry:
+        ts.append(f"  {json.dumps(sid)}: {fn},")
+    ts.append("} as const;")
+
+    # Machine-readable list of the locators that need a dialog/menu opened
+    # first, so a consumer can filter them out of a "is everything present?"
+    # sweep instead of treating them as broken.
+    py.append("\n\n# state id -> properties that only resolve once their dialog/menu is open.")
+    py.append("NEEDS_OPENING = {")
+    for sid, props in sorted(deferred.items()):
+        py.append(f"    {json.dumps(sid)}: {json.dumps(sorted(set(props)))},")
+    py.append("}")
+
+    ts.append("\n/** state id -> locators that need their dialog/menu opened first. */")
+    ts.append("export const NEEDS_OPENING: Record<string, string[]> = {")
+    for sid, props in sorted(deferred.items()):
+        ts.append(f"  {json.dumps(sid)}: {json.dumps(sorted(set(props)))},")
+    ts.append("};")
+
+    py.append("\n\n# Discovered state id -> its page object.")
+    py.append("STATES = {")
+    for sid, _fn, cls in registry:
+        py.append(f"    {json.dumps(sid)}: {cls},")
+    py.append("}")
 
     # ------------------------------------------------------------ navigation
     nav = [HEADER.format(src=source, when=when),
