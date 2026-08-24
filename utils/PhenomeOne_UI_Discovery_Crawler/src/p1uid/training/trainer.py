@@ -22,6 +22,7 @@ from typing import Any
 from ..logging_setup import get
 from ..locator.generator import LOW, MEDIUM, candidates
 from ..store.uimap import element_key
+from .workflows import Workflow, WorkflowStore
 
 log = get("training")
 
@@ -58,6 +59,8 @@ class Trainer:
         self._scan_lock = asyncio.Lock()
         self._last_scan_at = 0.0
         self._stopped = False
+        self.workflow: Workflow | None = None
+        self.workflow_store = WorkflowStore().load()
 
     # -------------------------------------------------------------- control
     async def start(self, page: Any) -> None:
@@ -72,8 +75,40 @@ class Trainer:
             self._timer = None
         async with self._scan_lock:
             pass                      # let an in-flight scan finish
+        self.end_workflow()
         self.stopped_at = time.time()
         return self.summary()
+
+    # ------------------------------------------------------------ workflows
+    def begin_workflow(self, name: str) -> None:
+        if self.workflow is not None:
+            self.end_workflow()
+        self.workflow = Workflow(name=name, start_state=self.current_sid or "")
+        log.info("Recording workflow %r from state %s", name, self.current_sid or "(unknown)")
+
+    def end_workflow(self) -> dict[str, Any] | None:
+        wf = self.workflow
+        self.workflow = None
+        if wf is None:
+            return None
+        if not wf.steps:
+            log.warning("Workflow %r had no steps; not saved", wf.name)
+            return None
+        entry = self.workflow_store.merge(wf)
+        self.workflow_store.save()
+        log.info("Workflow %r recorded: %d steps (%s -> %s)", wf.name, len(wf.steps),
+                 wf.start_state or "?", entry.get("endState") or "?")
+        return entry
+
+    def _workflow_step(self, action: dict[str, Any], from_sid: str, to_sid: str) -> None:
+        if self.workflow is None:
+            return
+        kind = "navigate" if from_sid != to_sid else "activate"
+        if action.get("interaction") == "change":
+            kind = "fill"
+        self.workflow.add_step(kind, action.get("name") or action.get("type") or "?",
+                               from_sid, to_sid, action.get("locator") or "",
+                               action.get("type") or "")
 
     def summary(self) -> dict[str, Any]:
         dur = max(0.0, (self.stopped_at or time.time()) - self.started_at)
@@ -92,6 +127,7 @@ class Trainer:
             "avgScanMs": int(self.scan_ms_total / self.scans) if self.scans else 0,
             "timeline": self.timeline[-400:],
             "mapTotals": {k: v for k, v in counts.items() if k != "weak"},
+            "workflows": self.workflow_store.names(),
         }
 
     # --------------------------------------------------------------- events
@@ -227,6 +263,7 @@ class Trainer:
         self.edges_seen.add(key)
         self.timeline.append({"from": from_sid, "action": action, "to": to_sid,
                               "at": time.strftime("%H:%M:%S")})
+        self._workflow_step(action, from_sid, to_sid)
         log.info("Navigation learned%s: %s --[%s %s]--> %s", "" if is_new else " (already known)",
                  from_sid, action.get("type"), action.get("name") or "?", to_sid)
 

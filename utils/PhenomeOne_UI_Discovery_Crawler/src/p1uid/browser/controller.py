@@ -333,6 +333,20 @@ class Engine:
                  summary.get("elementsSeen", 0))
         self.emit(type="training", active=False, summary=summary, counts=self.store.counts())
 
+    # --------------------------------------------------------- workflows
+    async def op_begin_workflow(self, name: str) -> None:
+        if self.trainer is None:
+            self.emit(type="error", op="workflow", msg="start training before recording a workflow")
+            return
+        self.trainer.begin_workflow(name)
+        self.emit(type="workflow", active=True, name=name)
+
+    async def op_end_workflow(self) -> None:
+        if self.trainer is None:
+            return
+        entry = self.trainer.end_workflow()
+        self.emit(type="workflow", active=False, workflow=entry)
+
     # -------------------------------------------------------- safe crawl
     async def op_crawl(self, limits: Any = None) -> None:
         """Autonomous, read-only exploration (Safe Crawl)."""

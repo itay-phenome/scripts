@@ -62,6 +62,7 @@ class CrawlResult:
     actions_clicked: int = 0
     edges_new: int = 0
     replays: int = 0
+    back_navigations: int = 0
     skipped: dict[str, int] = field(default_factory=dict)
     incidents: list[dict[str, Any]] = field(default_factory=list)
     aborted: str = ""
@@ -79,6 +80,7 @@ class CrawlResult:
             "actionsClicked": self.actions_clicked,
             "newNavigationPaths": self.edges_new,
             "replays": self.replays,
+            "backNavigations": self.back_navigations,
             "skippedByReason": self.skipped,
             "classificationTotals": self.classification_totals,
             "incidents": self.incidents,
@@ -215,6 +217,34 @@ class SafeCrawler:
             log.warning("Could not return to the start URL: %s", type(exc).__name__)
             return False
 
+    async def _go_back_to(self, state_id: str) -> Any:
+        """Cheap return path: one history step. Returns the scan if it worked."""
+        try:
+            await self._page.go_back(timeout=5000, wait_until="domcontentloaded")
+        except Exception:
+            return None
+        await stability.wait_stable(self._page, timeout_ms=self.limits.settle_timeout_ms)
+        try:
+            probe = await self._scan()
+        except Exception:
+            return None
+        if probe is not None and probe.state_id == state_id:
+            self.result.back_navigations += 1
+            return probe
+        return None
+
+    async def _return_to(self, state_id: str, path: list[dict[str, Any]]) -> Any:
+        """Get back to `state_id`, cheaply if possible. Returns its scan or None."""
+        probe = await self._go_back_to(state_id)
+        if probe is not None:
+            return probe
+        if not await self._replay(path):
+            return None
+        probe = await self._scan()
+        if probe is None or probe.state_id != state_id:
+            return None
+        return probe
+
     async def _replay(self, path: list[dict[str, Any]]) -> bool:
         """Re-reach a state by replaying its discovered action path from the root."""
         self.result.replays += 1
@@ -292,7 +322,14 @@ class SafeCrawler:
         return self.result
 
     async def _crawl(self) -> None:
-        await stability.wait_stable(self._page, timeout_ms=self.limits.settle_timeout_ms)
+        # Always start from the start URL so the root state is reproducible and
+        # re-reachable; otherwise replay can never return to it.
+        if not await self._goto_root():
+            self.result.aborted = "could not open the start URL"
+            return
+        if await self._session_lost():
+            self.result.aborted = "not authenticated at the start URL"
+            return
         res = await self._scan()
         if res is None:
             self.result.aborted = "nothing analysable at the start URL"
@@ -318,17 +355,11 @@ class SafeCrawler:
 
             # Get to the state we intend to explore.
             if current != state_id:
-                if not await self._replay(path):
+                probe = await self._return_to(state_id, path)
+                if probe is None:
                     self.result.unreachable_states.append(state_id)
                     log.warning("State %s could not be re-reached; skipping it", state_id)
                     current = None
-                    continue
-                probe = await self._scan()
-                if probe is None or probe.state_id != state_id:
-                    got = probe.state_id if probe else "?"
-                    log.warning("Replay of %s landed on %s; skipping", state_id, got)
-                    self.result.unreachable_states.append(state_id)
-                    current = got if probe else None
                     continue
                 res = probe
                 current = state_id
@@ -350,12 +381,9 @@ class SafeCrawler:
                 self._tried.add(ident)
 
                 if current != state_id:
-                    if not await self._replay(path):
+                    probe = await self._return_to(state_id, path)
+                    if probe is None:
                         current = None
-                        break
-                    probe = await self._scan()
-                    if probe is None or probe.state_id != state_id:
-                        current = probe.state_id if probe else None
                         break
                     res = probe
                     current = state_id
