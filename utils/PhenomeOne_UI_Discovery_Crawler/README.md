@@ -1,5 +1,8 @@
 # PhenomeOne UI Discovery
 
+> **Session handoff:** see [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for what is
+> done, what is tested, what is left, and the build path.
+
 A portable Windows tool that learns the PhenomeOne web UI and writes it out as a
 deterministic, reusable **UI knowledge layer** for Playwright/Jenkins tests.
 
@@ -50,6 +53,12 @@ A password is never accepted as a command-line argument. It comes from
 | `--remember` | save/reuse the authenticated session (DPAPI-encrypted) |
 | `--validate-limit N` | cap locator validations per scan (default 500) |
 | `--report-only` | regenerate reports from the existing map |
+| `--crawl` | Safe Crawl after login (read-only navigation only) |
+| `--crawl-max-states/-actions/-depth/--crawl-seconds` | crawl budgets |
+| `--workflow NAME` | record the training session as a named workflow |
+| `--generate-tests` | emit Playwright assets into `output/generated/` |
+| `--diff BASELINE CURRENT` | diff two UI maps and exit |
+| `--fail-on-low N` | CI gate: exit 4 above N LOW locators |
 | `--debug` | verbose logging |
 
 ---
@@ -214,10 +223,11 @@ See `ARCHITECTURE.md` for the module map and design decisions.
 * Not tested against the real PhenomeOne application; all verification here is
   against the bundled mock SPA.
 
-## Autonomous discovery (Safe Crawl) - foundation only
+## Autonomous discovery (Safe Crawl)
 
-The groundwork is in place; **there is no crawler yet** and nothing is clicked
-automatically.
+Press **SAFE CRAWL** (or `--crawl`) and the tool explores the application by
+itself, clicking **only** controls classified as read-only navigation, and
+records what it finds into the same UI map.
 
 * `p1uid.discovery.stability.wait_stable()` - "has the UI finished reacting?",
   driven by mutations plus the structural signature. No fixed sleeps, and
@@ -238,7 +248,55 @@ anything that submits or resets a form, POST triggers, downloads, `mailto:`,
 `target=_blank`. Structure outranks labels: a button captioned "Go" that
 implicitly submits a POST form is DANGEROUS.
 
-Still to build: the BFS crawler itself, workflow recording, UI diff between
-revisions, Jenkins integration, and test generation. The engine is GUI-free and
-importable (`p1uid.browser.controller.Engine`), so these bolt on without
-touching the discovery core.
+Guards, all test-asserted: native dialogs are always dismissed and the action
+that raised one is never retried; downloads are refused at the browser-context
+level; popups are closed; off-origin navigation is reverted; losing the session
+aborts the crawl. Budgets bound states, actions, depth, per-state actions and
+wall-clock time.
+
+## Workflow recording
+
+During training, name a sequence and bracket it with **Record Workflow** /
+**Stop Workflow** (or `--workflow NAME`). Steps are merged into
+`output/workflows.json` with the locator for each step. Field values are never
+captured.
+
+## UI diff between revisions
+
+    PhenomeOne-UI-Discovery-cli.exe --diff baseline/ui-map.json output/ui-map.json
+
+Prints `+ - ~` lines, writes `output/ui-diff.json` and `reports/ui-diff.html`
+(with a "test-breaking locator changes" table), and exits **5** when anything
+changed - so a CI job can gate on UI drift.
+
+## Test generation
+
+`--generate-tests` writes `output/generated/`:
+
+| File | Contents |
+|---|---|
+| `ui-map.ts` | typed Playwright locators per UI state |
+| `navigation.ts` | `NAV_STEPS` + `goToState(page, state)` from the learned graph |
+| `smoke.spec.ts` | one Playwright test per state asserting its controls |
+| `ui_map.py` | the same locators as playwright-python page objects |
+| `README.md` | every element that was skipped and the `data-testid` to add |
+
+Only validated HIGH/MEDIUM locators are emitted; LOW ones appear as `// SKIPPED`
+with the recommendation, so nobody inherits a flaky test.
+
+## Jenkins
+
+`reports/junit-discovery.xml` is standard JUnit: a case per UI state, a failure
+per weak or unstable locator (carrying the suggested test id), skips for
+locators that could not be validated because the element was hidden.
+
+    PhenomeOne-UI-Discovery-cli.exe --cli --url %URL% --user %USER% --headless \
+        --crawl --generate-tests --fail-on-low 0
+
+Exit codes: `0` ok, `2` bad arguments, `3` not authenticated, `4` CI gate
+(too many LOW locators), `5` `--diff` found changes.
+
+Still to build: workflow *replay*, a Jenkinsfile, and an opt-in for CONDITIONAL
+actions during a crawl. The engine is GUI-free and importable
+(`p1uid.browser.controller.Engine`), so these bolt on without touching the
+discovery core.

@@ -18,6 +18,18 @@ from .logging_setup import get, register_secret, setup
 PASSWORD_ENV = "P1UID_PASSWORD"
 
 
+def _ci_gate(args, engine, log) -> int:
+    """Jenkins gate: non-zero when the map is not good enough to test against."""
+    counts = engine.store.counts()
+    low = counts["confidence"].get("LOW", 0)
+    if args.fail_on_low >= 0 and low > args.fail_on_low:
+        log.error("CI gate FAILED: %d LOW-confidence locator(s) exceeds the allowed %d. "
+                  "See reports/junit-discovery.xml for the list and the suggested test ids.",
+                  low, args.fail_on_low)
+        return 4
+    return 0
+
+
 def _cli(args) -> int:
     from .browser.controller import Engine
 
@@ -30,8 +42,8 @@ def _cli(args) -> int:
     rc = 0
     try:
         if args.report_only:
-            engine._write_outputs()
-            return 0
+            engine.write_outputs()
+            return _ci_gate(args, engine, log)
         if not args.url:
             log.error("--url is required")
             return 2
@@ -74,11 +86,7 @@ def _cli(args) -> int:
                  counts["states"], counts["elements"], counts["navigationPaths"],
                  counts["confidence"].get("HIGH", 0), counts["confidence"].get("MEDIUM", 0),
                  counts["confidence"].get("LOW", 0))
-        low = counts["confidence"].get("LOW", 0)
-        if args.fail_on_low >= 0 and low > args.fail_on_low:
-            log.error("CI gate: %d LOW-confidence locators exceeds the allowed %d",
-                      low, args.fail_on_low)
-            rc = 4
+        rc = _ci_gate(args, engine, log) or rc
     finally:
         engine.shutdown_blocking()
     return rc
@@ -153,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     paths.ensure_dirs()
     setup(debug=args.debug)
     if args.version:
-        print(f"{paths.APP_NAME} 1.0.0")
+        print(f"{paths.APP_NAME} 1.1.0")
         return 0
 
     if args.diff:

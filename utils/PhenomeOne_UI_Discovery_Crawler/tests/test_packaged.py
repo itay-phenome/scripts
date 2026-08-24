@@ -149,7 +149,37 @@ def main() -> int:
                     pass
         check("password appears in no file in the package", not leaks, "; ".join(leaks))
 
-        print("\n[4] GUI executable launches")
+        print("\n[4] Safe Crawl + test generation in the packaged build")
+        env3 = clean_env({"P1UID_PASSWORD": PASSWORD})
+        r = subprocess.run([str(cli_exe), "--cli", "--url", server.url,
+                            "--user", "tester@example.com", "--headless", "--crawl",
+                            "--crawl-max-states", "6", "--crawl-max-actions", "18",
+                            "--crawl-seconds", "90", "--generate-tests"],
+                           capture_output=True, text=True, env=env3,
+                           cwd=str(relocated.parent), timeout=600)
+        out3 = r.stdout + r.stderr
+        print("\n".join("    " + l for l in out3.strip().splitlines()[-8:]))
+        check("packaged Safe Crawl ran", r.returncode == 0, f"rc={r.returncode}")
+        check("no traceback from the crawl", "Traceback (most recent call last)" not in out3)
+        crawl = relocated / "output" / "crawl-summary.json"
+        check("crawl-summary.json written by the exe", crawl.is_file())
+        if crawl.is_file():
+            cs = json.loads(crawl.read_text(encoding="utf-8"))
+            print(f"\n    packaged crawl: {cs['statesVisited']} states, "
+                  f"{cs['actionsClicked']} clicks, not clicked: {cs['skippedByReason']}")
+            check("packaged crawl clicked only safe actions",
+                  cs["actionsClicked"] > 0 and not [i for i in cs["incidents"]
+                                                    if i["kind"] == "native-dialog"],
+                  str(cs["incidents"]))
+            check("packaged crawl refused dangerous actions",
+                  cs["skippedByReason"].get("dangerous", 0) > 0, str(cs["skippedByReason"]))
+        gen = relocated / "output" / "generated"
+        check("generated Playwright assets written by the exe",
+              (gen / "ui-map.ts").is_file() and (gen / "smoke.spec.ts").is_file())
+        check("JUnit report written by the exe",
+              (relocated / "reports" / "junit-discovery.xml").is_file())
+
+        print("\n[5] GUI executable launches")
         log = relocated / "logs" / "discovery.log"
         before = log.stat().st_size if log.is_file() else 0
         proc = subprocess.Popen([str(gui_exe)], env=clean_env(), cwd=str(relocated.parent))

@@ -1,0 +1,117 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="PhenomeOne UI Discovery" tests="24" failures="12">
+  <testsuite name="PhenomeOne UI Discovery" timestamp="2026-08-24T22:52:31" hostname="discovery" tests="24" failures="12" errors="0" skipped="12">
+    <properties>
+      <property name="states" value="12" />
+      <property name="elements" value="525" />
+      <property name="navigationPaths" value="16" />
+      <property name="locatorsHigh" value="270" />
+      <property name="locatorsMedium" value="211" />
+      <property name="locatorsLow" value="44" />
+    </properties>
+    <testcase classname="ui-map.home" name="state has usable locators (28 elements)">
+      <failure type="WeakLocator" message="3 element(s) in home have no unique, stable locator">Main [main]: getByRole('main').nth(0) matched 1 - Add 'home-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'home-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'home-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.home" name="all locators validated live">
+      <skipped message="14 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-group-admin" name="state has usable locators (90 elements)">
+      <failure type="WeakLocator" message="6 element(s) in research-group-admin have no unique, stable locator">Details Button [button]: getByRole('button', { name: 'Details', exact: true }) matched 3 - Add 'research-group-admin-details-button' as a data-testid on this button to make it deterministically locatable
+Form [form]: getByRole('form').nth(0) matched 0 - Add 'research-group-admin-form' as a data-testid on this form to make it deterministically locatable
+Group [group]: getByRole('group').nth(0) matched 1 - Add 'research-group-admin-group' as a data-testid on this group to make it deterministically locatable
+Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-group-admin-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-group-admin-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-group-admin-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-group-admin" name="all locators validated live">
+      <skipped message="13 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-group-cultivars" name="state has usable locators (39 elements)">
+      <failure type="WeakLocator" message="3 element(s) in research-group-cultivars have no unique, stable locator">Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-group-cultivars-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-group-cultivars-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-group-cultivars-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-group-cultivars" name="all locators validated live">
+      <skipped message="14 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-group-entities" name="state has usable locators (39 elements)">
+      <failure type="WeakLocator" message="3 element(s) in research-group-entities have no unique, stable locator">Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-group-entities-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-group-entities-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-group-entities-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-group-entities" name="all locators validated live">
+      <skipped message="14 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-group-germplasms" name="state has usable locators (47 elements)">
+      <failure type="WeakLocator" message="5 element(s) in research-group-germplasms have no unique, stable locator">Delete Button [button]: getByRole('button', { name: 'Delete', exact: true }) matched 2 - Add 'research-group-germplasms-delete-button' as a data-testid on this button to make it deterministically locatable
+Edit Button [button]: getByRole('button', { name: 'Edit', exact: true }) matched 2 - Add 'research-group-germplasms-edit-button' as a data-testid on this button to make it deterministically locatable
+Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-group-germplasms-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-group-germplasms-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-group-germplasms-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-group-germplasms" name="all locators validated live">
+      <skipped message="14 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-group-germplasms-dialog-add-germplasm" name="state has usable locators (47 elements)">
+      <failure type="WeakLocator" message="5 element(s) in research-group-germplasms-dialog-add-germplasm have no unique, stable locator">Delete Button [button]: getByRole('button', { name: 'Delete', exact: true }) matched 2 - Add 'research-group-germplasms-dialog-add-germplasm-delete-button' as a data-testid on this button to make it deterministically locatable
+Edit Button [button]: getByRole('button', { name: 'Edit', exact: true }) matched 2 - Add 'research-group-germplasms-dialog-add-germplasm-edit-button' as a data-testid on this button to make it deterministically locatable
+Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-group-germplasms-dialog-add-germplasm-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-group-germplasms-dialog-add-germplasm-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-group-germplasms-dialog-add-germplasm-phenomeone-headin' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-group-germplasms-dialog-add-germplasm" name="all locators validated live">
+      <skipped message="8 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-group-images" name="state has usable locators (39 elements)">
+      <failure type="WeakLocator" message="3 element(s) in research-group-images have no unique, stable locator">Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-group-images-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-group-images-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-group-images-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-group-images" name="all locators validated live">
+      <skipped message="14 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-group-inventory" name="state has usable locators (39 elements)">
+      <failure type="WeakLocator" message="3 element(s) in research-group-inventory have no unique, stable locator">Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-group-inventory-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-group-inventory-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-group-inventory-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-group-inventory" name="all locators validated live">
+      <skipped message="14 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-group-observations" name="state has usable locators (44 elements)">
+      <failure type="WeakLocator" message="4 element(s) in research-group-observations have no unique, stable locator">Form [form]: getByRole('form').nth(1) matched 0 - Add 'research-group-observations-form' as a data-testid on this form to make it deterministically locatable
+Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-group-observations-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-group-observations-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-group-observations-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-group-observations" name="all locators validated live">
+      <skipped message="14 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-group-overview" name="state has usable locators (39 elements)">
+      <failure type="WeakLocator" message="3 element(s) in research-group-overview have no unique, stable locator">Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-group-overview-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-group-overview-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-group-overview-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-group-overview" name="all locators validated live">
+      <skipped message="14 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-group-variables" name="state has usable locators (43 elements)">
+      <failure type="WeakLocator" message="3 element(s) in research-group-variables have no unique, stable locator">Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-group-variables-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-group-variables-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-group-variables-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-group-variables" name="all locators validated live">
+      <skipped message="15 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+    <testcase classname="ui-map.research-groups" name="state has usable locators (31 elements)">
+      <failure type="WeakLocator" message="3 element(s) in research-groups have no unique, stable locator">Main [main]: getByRole('main').nth(0) matched 1 - Add 'research-groups-main' as a data-testid on this main to make it deterministically locatable
+Main [main]: getByRole('main').nth(2) matched 0 - Add 'research-groups-main' as a data-testid on this main to make it deterministically locatable
+PhenomeOne Heading [heading]: getByRole('heading', { name: 'PhenomeOne', exact: true }) matched None - Add 'research-groups-phenomeone-heading' as a data-testid on this heading to make it deterministically locatable</failure>
+    </testcase>
+    <testcase classname="ui-map.research-groups" name="all locators validated live">
+      <skipped message="14 locator(s) not validated: the element was hidden at scan time (open the dialog/menu and re-scan to confirm)" />
+    </testcase>
+  </testsuite>
+</testsuites>

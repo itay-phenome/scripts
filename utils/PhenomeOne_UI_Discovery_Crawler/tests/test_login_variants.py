@@ -50,7 +50,22 @@ def check(label: str, ok: bool, detail: str = "") -> None:
         failures.append(label)
 
 
-def run_case(engine: Engine, url: str) -> bool:
+def reset_session(engine: Engine, root: str) -> None:
+    """The mock keeps a session across reloads (like a real app), so each case
+    must start signed out or it would see itself already authenticated."""
+    async def _clear() -> None:
+        await engine.page.goto(root, wait_until="domcontentloaded")
+        await engine.page.evaluate("() => { try { sessionStorage.clear(); "
+                                  "localStorage.clear(); } catch (e) {} }")
+    try:
+        engine.call(lambda: _clear(), timeout=60)
+    except Exception:
+        pass
+
+
+def run_case(engine: Engine, url: str, root: str = "") -> bool:
+    if root:
+        reset_session(engine, root)
     engine.authenticated = False
     engine.call(lambda: engine.op_login(url, USER, PASSWORD), timeout=180)
     return engine.authenticated
@@ -69,19 +84,19 @@ def main() -> int:
         engine.start()
         try:
             print("\n[1] login form renders 4s after page load")
-            check("slow-booting form is found and used", run_case(engine, base + "?delay=4000"))
+            check("slow-booting form is found and used", run_case(engine, base + "?delay=4000", root))
 
             print("\n[2] login form inside an identity-provider iframe")
-            ok = run_case(engine, root + "iframe_login.html")
+            ok = run_case(engine, root + "iframe_login.html", root)
             check("form inside an iframe is found and used", ok)
             check("success detected even though the iframe was destroyed", ok)
 
             print("\n[3] landing page with a single 'Sign in' entry point")
             check("entry point clicked, then the form is used",
-                  run_case(engine, base + "?landing=1"))
+                  run_case(engine, base + "?landing=1", root))
 
             print("\n[4] a page with no login form at all")
-            ok = run_case(engine, root + "no_form.html")
+            ok = run_case(engine, root + "no_form.html", root)
             check("refuses cleanly instead of typing into random fields", not ok)
             diag = engine.call(lambda: auth_login.describe_page(engine.page), timeout=60)
             print("\n".join("      " + l for l in diag.splitlines()[:6]))

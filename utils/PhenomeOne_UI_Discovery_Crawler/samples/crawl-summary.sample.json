@@ -1,0 +1,161 @@
+{
+  "startedAt": "2026-08-24T22:52:12",
+  "durationSeconds": 19.5,
+  "statesVisited": 3,
+  "newStates": [
+    "research-group-admin",
+    "research-group-cultivars",
+    "research-group-entities",
+    "research-group-images",
+    "research-group-inventory",
+    "research-group-observations"
+  ],
+  "unreachableStates": [],
+  "actionsClicked": 18,
+  "newNavigationPaths": 10,
+  "replays": 10,
+  "backNavigations": 4,
+  "skippedByReason": {
+    "unknown": 178,
+    "conditional": 133,
+    "dangerous": 101,
+    "no-state-change": 5
+  },
+  "classificationTotals": {
+    "UNKNOWN": 178,
+    "CONDITIONAL": 133,
+    "DANGEROUS": 101,
+    "SAFE_NAVIGATION": 134
+  },
+  "incidents": [],
+  "abortedBecause": "",
+  "limitHit": "max_actions",
+  "timeline": [
+    {
+      "from": "home",
+      "action": "Home",
+      "type": "link",
+      "to": "home",
+      "at": "22:52:13"
+    },
+    {
+      "from": "home",
+      "action": "Research Groups",
+      "type": "link",
+      "to": "research-groups",
+      "at": "22:52:13"
+    },
+    {
+      "from": "home",
+      "action": "Actions",
+      "type": "button",
+      "to": "home",
+      "at": "22:52:13"
+    },
+    {
+      "from": "research-groups",
+      "action": "Home",
+      "type": "link",
+      "to": "home",
+      "at": "22:52:15"
+    },
+    {
+      "from": "research-groups",
+      "action": "Research Group ABC",
+      "type": "link",
+      "to": "research-group-overview",
+      "at": "22:52:15"
+    },
+    {
+      "from": "research-groups",
+      "action": "Research Group XYZ",
+      "type": "link",
+      "to": "research-group-overview",
+      "at": "22:52:16"
+    },
+    {
+      "from": "research-groups",
+      "action": "Research Groups",
+      "type": "link",
+      "to": "research-groups",
+      "at": "22:52:16"
+    },
+    {
+      "from": "research-groups",
+      "action": "Actions",
+      "type": "button",
+      "to": "research-groups",
+      "at": "22:52:17"
+    },
+    {
+      "from": "research-group-overview",
+      "action": "Admin",
+      "type": "tab",
+      "to": "research-group-admin",
+      "at": "22:52:19"
+    },
+    {
+      "from": "research-group-overview",
+      "action": "Cultivars",
+      "type": "tab",
+      "to": "research-group-cultivars",
+      "at": "22:52:20"
+    },
+    {
+      "from": "research-group-overview",
+      "action": "Entities",
+      "type": "tab",
+      "to": "research-group-entities",
+      "at": "22:52:22"
+    },
+    {
+      "from": "research-group-overview",
+      "action": "Germplasms",
+      "type": "tab",
+      "to": "research-group-germplasms",
+      "at": "22:52:23"
+    },
+    {
+      "from": "research-group-overview",
+      "action": "Images",
+      "type": "tab",
+      "to": "research-group-images",
+      "at": "22:52:25"
+    },
+    {
+      "from": "research-group-overview",
+      "action": "Inventory",
+      "type": "tab",
+      "to": "research-group-inventory",
+      "at": "22:52:26"
+    },
+    {
+      "from": "research-group-overview",
+      "action": "Observations",
+      "type": "tab",
+      "to": "research-group-observations",
+      "at": "22:52:28"
+    },
+    {
+      "from": "research-group-overview",
+      "action": "Overview",
+      "type": "tab",
+      "to": "research-group-overview",
+      "at": "22:52:29"
+    },
+    {
+      "from": "research-group-overview",
+      "action": "Variables",
+      "type": "tab",
+      "to": "research-group-variables",
+      "at": "22:52:30"
+    },
+    {
+      "from": "research-group-overview",
+      "action": "Home",
+      "type": "link",
+      "to": "home",
+      "at": "22:52:31"
+    }
+  ]
+}

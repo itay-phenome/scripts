@@ -63,14 +63,14 @@ def dir_size_mb(path: Path) -> float:
     return total / 1_000_000
 
 
-README = """PhenomeOne UI Discovery - portable build
+README = r"""PhenomeOne UI Discovery - portable build
 =======================================
 
 Requirements on the target machine: none. No Python, Node.js, npm, Playwright,
 Chrome/Edge, Docker or WSL is required. Everything is in this folder.
 
 HOW TO RUN
-  1. Copy this whole folder anywhere (C:\\Tools\\, a USB stick, another PC).
+  1. Copy this whole folder anywhere (C:\Tools\, a USB stick, another PC).
      Keep the path reasonably short - Chromium cannot start if its own files
      end up deeper than the Windows 260-character path limit.
   2. Double-click PhenomeOne-UI-Discovery.exe
@@ -81,24 +81,39 @@ HOW TO RUN
      learned. STOP TRAINING writes the map and the report.
 
 OUTPUT
-  output\\ui-map.json            every UI state, element and validated locator
-  output\\navigation-graph.json  state -> action -> state graph
-  output\\application.json       environment + totals
-  output\\training-summary.json  last training session
-  reports\\discovery-report.html readable report
-  logs\\discovery.log            diagnostics
+  output\ui-map.json            every UI state, element and validated locator
+  output\navigation-graph.json  state -> action -> state graph
+  output\application.json       environment + totals
+  output\training-summary.json  last training session
+  reports\discovery-report.html readable report
+  logs\discovery.log            diagnostics
+
+SAFE CRAWL (autonomous)
+  Press SAFE CRAWL to let the tool explore by itself. It clicks ONLY controls it
+  classified as read-only navigation - tabs, same-origin links, expanders,
+  pagination. It never clicks Save/Delete/Submit/Import/Logout or anything it
+  does not recognise, never accepts a confirmation dialog, refuses downloads and
+  never leaves the site. Results land in output\crawl-summary.json.
 
 COMMAND LINE (CI / Jenkins)
   PhenomeOne-UI-Discovery-cli.exe --cli --url https://... --user me@example.com --headless
   The password is read from the P1UID_PASSWORD environment variable - never
   from a command-line argument.
 
+  Useful flags:
+    --crawl              explore autonomously after login (read-only actions)
+    --workflow NAME      record a training session as a named workflow
+    --generate-tests     write Playwright assets to output\generated\
+    --diff A B           compare two ui-map.json files (exit 5 if they differ)
+    --fail-on-low N      CI gate: exit 4 above N weak locators
+  Reports for Jenkins: reports\junit-discovery.xml
+
 SECURITY
   * The password is kept in memory only. It is never written to any file.
   * "Remember authenticated session" stores the browser session under
-    sessions\\, encrypted with Windows DPAPI (only your Windows account on this
+    sessions\, encrypted with Windows DPAPI (only your Windows account on this
     machine can decrypt it). Use "Clear Saved Session" to delete it.
-  * sessions\\ is never included in reports, UI maps or logs.
+  * sessions\ is never included in reports, UI maps or logs.
 
 NOTE
   Training mode only observes. It never clicks anything in PhenomeOne.

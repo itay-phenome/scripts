@@ -5,18 +5,48 @@
       "label": "Home",
       "route": "/app/",
       "fingerprint": "f6cf2816164e",
-      "elements": 26,
-      "timesSeen": 2,
+      "elements": 28,
+      "timesSeen": 10,
       "hasDialog": false,
       "activeTab": ""
+    },
+    {
+      "id": "research-group-admin",
+      "label": "Research Group ABC > Admin",
+      "route": "/app/research-group/:id",
+      "fingerprint": "9b133ddf8970",
+      "elements": 90,
+      "timesSeen": 1,
+      "hasDialog": false,
+      "activeTab": "Admin"
+    },
+    {
+      "id": "research-group-cultivars",
+      "label": "Research Group ABC > Cultivars",
+      "route": "/app/research-group/:id",
+      "fingerprint": "160f21cdcc85",
+      "elements": 39,
+      "timesSeen": 1,
+      "hasDialog": false,
+      "activeTab": "Cultivars"
+    },
+    {
+      "id": "research-group-entities",
+      "label": "Research Group ABC > Entities",
+      "route": "/app/research-group/:id",
+      "fingerprint": "a7db7e515213",
+      "elements": 39,
+      "timesSeen": 1,
+      "hasDialog": false,
+      "activeTab": "Entities"
     },
     {
       "id": "research-group-germplasms",
       "label": "Research Group ABC > Germplasms",
       "route": "/app/research-group/:id",
-      "fingerprint": "5f22ae4ef83f",
-      "elements": 44,
-      "timesSeen": 2,
+      "fingerprint": "42e8ae596e9a",
+      "elements": 47,
+      "timesSeen": 3,
       "hasDialog": false,
       "activeTab": "Germplasms"
     },
@@ -24,19 +54,49 @@
       "id": "research-group-germplasms-dialog-add-germplasm",
       "label": "Research Group ABC > Germplasms [dialog: Add Germplasm]",
       "route": "/app/research-group/:id",
-      "fingerprint": "f0b2e254f55f",
-      "elements": 44,
+      "fingerprint": "3d20bc53c1a1",
+      "elements": 47,
       "timesSeen": 1,
       "hasDialog": true,
       "activeTab": "Germplasms"
     },
     {
+      "id": "research-group-images",
+      "label": "Research Group ABC > Images",
+      "route": "/app/research-group/:id",
+      "fingerprint": "b1effb5be1a0",
+      "elements": 39,
+      "timesSeen": 1,
+      "hasDialog": false,
+      "activeTab": "Images"
+    },
+    {
+      "id": "research-group-inventory",
+      "label": "Research Group ABC > Inventory",
+      "route": "/app/research-group/:id",
+      "fingerprint": "1b7efabdbb3c",
+      "elements": 39,
+      "timesSeen": 1,
+      "hasDialog": false,
+      "activeTab": "Inventory"
+    },
+    {
+      "id": "research-group-observations",
+      "label": "Research Group ABC > Observations",
+      "route": "/app/research-group/:id",
+      "fingerprint": "0d4b59f88c36",
+      "elements": 44,
+      "timesSeen": 1,
+      "hasDialog": false,
+      "activeTab": "Observations"
+    },
+    {
       "id": "research-group-overview",
       "label": "Research Group ABC > Overview",
       "route": "/app/research-group/:id",
-      "fingerprint": "627ef0820cb8",
-      "elements": 36,
-      "timesSeen": 1,
+      "fingerprint": "e76eb70e6fcf",
+      "elements": 39,
+      "timesSeen": 13,
       "hasDialog": false,
       "activeTab": "Overview"
     },
@@ -44,9 +104,9 @@
       "id": "research-group-variables",
       "label": "Research Group ABC > Variables",
       "route": "/app/research-group/:id",
-      "fingerprint": "61177342a17f",
-      "elements": 40,
-      "timesSeen": 1,
+      "fingerprint": "c082d96ba7d9",
+      "elements": 43,
+      "timesSeen": 2,
       "hasDialog": false,
       "activeTab": "Variables"
     },
@@ -55,8 +115,8 @@
       "label": "Research Groups",
       "route": "/app/research-groups",
       "fingerprint": "39d54945703c",
-      "elements": 29,
-      "timesSeen": 1,
+      "elements": 31,
+      "timesSeen": 17,
       "hasDialog": false,
       "activeTab": ""
     }
@@ -68,8 +128,9 @@
         "type": "link",
         "name": "Research Groups",
         "role": "link",
-        "interaction": "click",
-        "trigger": "dom-mutation",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
         "locator": "getByTestId('nav-research-groups')",
         "locatorSpec": {
           "strategy": "testid",
@@ -90,9 +151,9 @@
         }
       },
       "to": "research-groups",
-      "timesSeen": 1,
-      "firstSeen": "2026-08-24T21:25:00",
-      "lastSeen": "2026-08-24T21:25:00"
+      "timesSeen": 2,
+      "firstSeen": "2026-08-24T22:51:48",
+      "lastSeen": "2026-08-24T22:52:13"
     },
     {
       "from": "research-groups",
@@ -100,8 +161,9 @@
         "type": "link",
         "name": "Research Group ABC",
         "role": "link",
-        "interaction": "click",
-        "trigger": "dom-mutation",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
         "locator": "getByRole('link', { name: 'Research Group ABC', exact: true })",
         "locatorSpec": {
           "strategy": "role",
@@ -123,9 +185,9 @@
         }
       },
       "to": "research-group-overview",
-      "timesSeen": 1,
-      "firstSeen": "2026-08-24T21:25:01",
-      "lastSeen": "2026-08-24T21:25:01"
+      "timesSeen": 2,
+      "firstSeen": "2026-08-24T22:51:49",
+      "lastSeen": "2026-08-24T22:52:15"
     },
     {
       "from": "research-group-overview",
@@ -133,8 +195,9 @@
         "type": "tab",
         "name": "Germplasms",
         "role": "tab",
-        "interaction": "click",
-        "trigger": "dom-mutation",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
         "locator": "getByRole('tab', { name: 'Germplasms', exact: true })",
         "locatorSpec": {
           "strategy": "role",
@@ -156,9 +219,9 @@
         }
       },
       "to": "research-group-germplasms",
-      "timesSeen": 1,
-      "firstSeen": "2026-08-24T21:25:03",
-      "lastSeen": "2026-08-24T21:25:03"
+      "timesSeen": 2,
+      "firstSeen": "2026-08-24T22:51:50",
+      "lastSeen": "2026-08-24T22:52:23"
     },
     {
       "from": "research-group-germplasms",
@@ -189,8 +252,8 @@
       },
       "to": "research-group-germplasms-dialog-add-germplasm",
       "timesSeen": 1,
-      "firstSeen": "2026-08-24T21:25:04",
-      "lastSeen": "2026-08-24T21:25:04"
+      "firstSeen": "2026-08-24T22:51:52",
+      "lastSeen": "2026-08-24T22:51:52"
     },
     {
       "from": "research-group-germplasms-dialog-add-germplasm",
@@ -222,8 +285,8 @@
       },
       "to": "research-group-germplasms",
       "timesSeen": 1,
-      "firstSeen": "2026-08-24T21:25:05",
-      "lastSeen": "2026-08-24T21:25:05"
+      "firstSeen": "2026-08-24T22:51:53",
+      "lastSeen": "2026-08-24T22:51:53"
     },
     {
       "from": "research-group-germplasms",
@@ -255,20 +318,370 @@
       },
       "to": "research-group-variables",
       "timesSeen": 1,
-      "firstSeen": "2026-08-24T21:25:06",
-      "lastSeen": "2026-08-24T21:25:06"
+      "firstSeen": "2026-08-24T22:51:54",
+      "lastSeen": "2026-08-24T22:51:54"
+    },
+    {
+      "from": "research-groups",
+      "action": {
+        "type": "link",
+        "name": "Home",
+        "role": "link",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
+        "locator": "getByRole('link', { name: 'Home', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('link', { name: 'Home', exact: true })",
+          "python": "get_by_role(\"link\", name=\"Home\", exact=True)",
+          "args": {
+            "role": "link",
+            "name": "Home",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "home",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T22:52:15",
+      "lastSeen": "2026-08-24T22:52:15"
+    },
+    {
+      "from": "research-groups",
+      "action": {
+        "type": "link",
+        "name": "Research Group XYZ",
+        "role": "link",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
+        "locator": "getByRole('link', { name: 'Research Group XYZ', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('link', { name: 'Research Group XYZ', exact: true })",
+          "python": "get_by_role(\"link\", name=\"Research Group XYZ\", exact=True)",
+          "args": {
+            "role": "link",
+            "name": "Research Group XYZ",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-overview",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T22:52:16",
+      "lastSeen": "2026-08-24T22:52:16"
+    },
+    {
+      "from": "research-group-overview",
+      "action": {
+        "type": "tab",
+        "name": "Admin",
+        "role": "tab",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
+        "locator": "getByRole('tab', { name: 'Admin', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('tab', { name: 'Admin', exact: true })",
+          "python": "get_by_role(\"tab\", name=\"Admin\", exact=True)",
+          "args": {
+            "role": "tab",
+            "name": "Admin",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-admin",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T22:52:19",
+      "lastSeen": "2026-08-24T22:52:19"
+    },
+    {
+      "from": "research-group-overview",
+      "action": {
+        "type": "tab",
+        "name": "Cultivars",
+        "role": "tab",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
+        "locator": "getByRole('tab', { name: 'Cultivars', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('tab', { name: 'Cultivars', exact: true })",
+          "python": "get_by_role(\"tab\", name=\"Cultivars\", exact=True)",
+          "args": {
+            "role": "tab",
+            "name": "Cultivars",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-cultivars",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T22:52:20",
+      "lastSeen": "2026-08-24T22:52:20"
+    },
+    {
+      "from": "research-group-overview",
+      "action": {
+        "type": "tab",
+        "name": "Entities",
+        "role": "tab",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
+        "locator": "getByRole('tab', { name: 'Entities', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('tab', { name: 'Entities', exact: true })",
+          "python": "get_by_role(\"tab\", name=\"Entities\", exact=True)",
+          "args": {
+            "role": "tab",
+            "name": "Entities",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-entities",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T22:52:22",
+      "lastSeen": "2026-08-24T22:52:22"
+    },
+    {
+      "from": "research-group-overview",
+      "action": {
+        "type": "tab",
+        "name": "Images",
+        "role": "tab",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
+        "locator": "getByRole('tab', { name: 'Images', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('tab', { name: 'Images', exact: true })",
+          "python": "get_by_role(\"tab\", name=\"Images\", exact=True)",
+          "args": {
+            "role": "tab",
+            "name": "Images",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-images",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T22:52:25",
+      "lastSeen": "2026-08-24T22:52:25"
+    },
+    {
+      "from": "research-group-overview",
+      "action": {
+        "type": "tab",
+        "name": "Inventory",
+        "role": "tab",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
+        "locator": "getByRole('tab', { name: 'Inventory', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('tab', { name: 'Inventory', exact: true })",
+          "python": "get_by_role(\"tab\", name=\"Inventory\", exact=True)",
+          "args": {
+            "role": "tab",
+            "name": "Inventory",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-inventory",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T22:52:26",
+      "lastSeen": "2026-08-24T22:52:26"
+    },
+    {
+      "from": "research-group-overview",
+      "action": {
+        "type": "tab",
+        "name": "Observations",
+        "role": "tab",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
+        "locator": "getByRole('tab', { name: 'Observations', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('tab', { name: 'Observations', exact: true })",
+          "python": "get_by_role(\"tab\", name=\"Observations\", exact=True)",
+          "args": {
+            "role": "tab",
+            "name": "Observations",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-observations",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T22:52:28",
+      "lastSeen": "2026-08-24T22:52:28"
+    },
+    {
+      "from": "research-group-overview",
+      "action": {
+        "type": "tab",
+        "name": "Variables",
+        "role": "tab",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
+        "locator": "getByRole('tab', { name: 'Variables', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('tab', { name: 'Variables', exact: true })",
+          "python": "get_by_role(\"tab\", name=\"Variables\", exact=True)",
+          "args": {
+            "role": "tab",
+            "name": "Variables",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-variables",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T22:52:30",
+      "lastSeen": "2026-08-24T22:52:30"
+    },
+    {
+      "from": "research-group-overview",
+      "action": {
+        "type": "link",
+        "name": "Home",
+        "role": "link",
+        "interaction": "crawler-click",
+        "trigger": "safe-crawl",
+        "safety": "SAFE_NAVIGATION",
+        "locator": "getByRole('link', { name: 'Home', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('link', { name: 'Home', exact: true })",
+          "python": "get_by_role(\"link\", name=\"Home\", exact=True)",
+          "args": {
+            "role": "link",
+            "name": "Home",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "home",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T22:52:31",
+      "lastSeen": "2026-08-24T22:52:31"
     }
   ],
   "roots": [
     "home"
   ],
   "tree": [
-    "home  (26 elements)",
-    "└── [Research Groups] -> research-groups  (29 elements)",
-    "    └── [Research Group ABC] -> research-group-overview  (36 elements)",
-    "        └── [Germplasms] -> research-group-germplasms  (44 elements)",
-    "            ├── [Add Germplasm] -> research-group-germplasms-dialog-add-germplasm  (44 elements)",
-    "            │   └── [Close dialog] -> research-group-germplasms  (44 elements)   (shown above)",
-    "            └── [Variables] -> research-group-variables  (40 elements)"
+    "home  (28 elements)",
+    "└── [Research Groups] -> research-groups  (31 elements)",
+    "    ├── [Home] -> home  (28 elements)   (shown above)",
+    "    ├── [Research Group ABC] -> research-group-overview  (39 elements)",
+    "    │   ├── [Admin] -> research-group-admin  (90 elements)",
+    "    │   ├── [Cultivars] -> research-group-cultivars  (39 elements)",
+    "    │   ├── [Entities] -> research-group-entities  (39 elements)",
+    "    │   ├── [Germplasms] -> research-group-germplasms  (47 elements)",
+    "    │   │   ├── [Add Germplasm] -> research-group-germplasms-dialog-add-germplasm  (47 elements)",
+    "    │   │   │   └── [Close dialog] -> research-group-germplasms  (47 elements)   (shown above)",
+    "    │   │   └── [Variables] -> research-group-variables  (43 elements)",
+    "    │   ├── [Home] -> home  (28 elements)   (shown above)",
+    "    │   ├── [Images] -> research-group-images  (39 elements)",
+    "    │   ├── [Inventory] -> research-group-inventory  (39 elements)",
+    "    │   ├── [Observations] -> research-group-observations  (44 elements)",
+    "    │   └── [Variables] -> research-group-variables  (43 elements)   (shown above)",
+    "    └── [Research Group XYZ] -> research-group-overview  (39 elements)   (shown above)"
   ]
 }

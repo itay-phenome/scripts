@@ -289,7 +289,7 @@ class Engine:
             self.emit(type="error", op="scan", msg="nothing analysable on this page")
             return
         self.store.save()
-        self._write_outputs()
+        self.write_outputs()
         self.emit(type="scan", result=res.__dict__, counts=self.store.counts())
 
     # ------------------------------------------------------------ training
@@ -329,7 +329,7 @@ class Engine:
         self.trainer = None
         log.info("Training stopped. Saving map...")
         self.store.save()
-        self._write_outputs(training_summary=summary)
+        self.write_outputs(training_summary=summary)
         log.info("Training summary: %d UI states, %d navigation paths, %d elements",
                  summary.get("statesSeen", 0), summary.get("navigationPaths", 0),
                  summary.get("elementsSeen", 0))
@@ -373,12 +373,12 @@ class Engine:
             self.crawl_active = False
         self.store.save()
         _write_json(paths.CRAWL_SUMMARY_FILE, result.to_json())
-        self._write_outputs()
+        self.write_outputs()
         self.emit(type="crawl", active=False, summary=result.to_json(),
                   counts=self.store.counts())
 
     # -------------------------------------------------------------- output
-    def _write_outputs(self, training_summary: dict[str, Any] | None = None) -> None:
+    def write_outputs(self, training_summary: dict[str, Any] | None = None) -> None:
         paths.ensure_dirs()
         counts = self.store.counts()
         app = {
