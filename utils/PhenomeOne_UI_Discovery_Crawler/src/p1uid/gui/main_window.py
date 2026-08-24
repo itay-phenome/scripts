@@ -31,13 +31,14 @@ class App(tk.Tk):
         super().__init__()
         paths.ensure_dirs()
         self.title(paths.APP_NAME)
-        self.geometry("760x820")
-        self.minsize(700, 700)
+        self.geometry("820x900")
+        self.minsize(760, 780)
 
         self.events: "queue.Queue[dict[str, Any]]" = queue.Queue()
         self.engine: Engine | None = None
         self.debug = debug
         self.training = False
+        self.crawling = False
         self.training_started = 0.0
         self._settings = self._load_settings()
 
@@ -50,6 +51,8 @@ class App(tk.Tk):
         self.var_browser = tk.StringVar(value="Browser: stopped")
         self.var_training = tk.StringVar(value="Training: idle")
         self.var_duration = tk.StringVar(value="00:00")
+        self.var_workflow = tk.StringVar()
+        self.var_crawl = tk.StringVar(value="")
         self.stats = {k: tk.StringVar(value="0") for k in
                       ("states", "elements", "paths", "high", "medium", "low")}
 
@@ -103,6 +106,23 @@ class App(tk.Tk):
         ttk.Label(row, textvariable=self.var_training).pack(side="left", padx=12)
         ttk.Label(row, textvariable=self.var_duration).pack(side="right")
 
+        crawl_row = ttk.Frame(disc)
+        crawl_row.pack(fill="x", pady=(8, 0))
+        self.b_crawl = ttk.Button(crawl_row, text="SAFE CRAWL", command=self.on_crawl)
+        self.b_crawl.pack(side="left")
+        ttk.Label(crawl_row, text="explores read-only navigation only - never clicks "
+                                  "Save/Delete/Submit", foreground="#666").pack(side="left", padx=8)
+        ttk.Label(crawl_row, textvariable=self.var_crawl, foreground="#0a6").pack(side="right")
+
+        wf_row = ttk.Frame(disc)
+        wf_row.pack(fill="x", pady=(8, 0))
+        ttk.Label(wf_row, text="Workflow").pack(side="left")
+        ttk.Entry(wf_row, textvariable=self.var_workflow, width=28).pack(side="left", padx=6)
+        self.b_workflow = ttk.Button(wf_row, text="Record Workflow", command=self.on_workflow)
+        self.b_workflow.pack(side="left")
+        ttk.Label(wf_row, text="(during training: brackets a named sequence of steps)",
+                  foreground="#666").pack(side="left", padx=8)
+
         grid = ttk.Frame(disc)
         grid.pack(fill="x", pady=(PAD, 0))
         labels = [("UI States", "states"), ("Elements", "elements"), ("Navigation Paths", "paths"),
@@ -128,6 +148,16 @@ class App(tk.Tk):
         ttk.Button(r1, text="Open Output Folder",
                    command=lambda: self._open(paths.OUTPUT_DIR)).pack(side="left", padx=6)
         ttk.Button(r1, text="Clear Saved Session", command=self.on_clear_session).pack(side="right")
+        r2 = ttk.Frame(out)
+        r2.pack(fill="x", pady=(6, 0))
+        ttk.Button(r2, text="View Workflows",
+                   command=lambda: self._open(paths.WORKFLOWS_FILE)).pack(side="left")
+        ttk.Button(r2, text="View Crawl Summary",
+                   command=lambda: self._open(paths.CRAWL_SUMMARY_FILE)).pack(side="left", padx=6)
+        ttk.Button(r2, text="Generated Tests",
+                   command=lambda: self._open(paths.GENERATED_DIR)).pack(side="left")
+        ttk.Button(r2, text="JUnit XML",
+                   command=lambda: self._open(paths.JUNIT_FILE)).pack(side="left", padx=6)
 
         # --- activity
         act = ttk.LabelFrame(root, text="Activity", padding=PAD)
@@ -194,6 +224,44 @@ class App(tk.Tk):
         else:
             eng.submit(lambda: eng.op_stop_training(), op="stop_training")
 
+    def on_crawl(self) -> None:
+        if self.training:
+            messagebox.showinfo(paths.APP_NAME, "Stop training before starting a Safe Crawl.")
+            return
+        if self.crawling:
+            messagebox.showinfo(paths.APP_NAME,
+                                "A crawl is already running. It stops on its own when the "
+                                "budget is reached.")
+            return
+        if not messagebox.askyesno(
+                paths.APP_NAME,
+                "Start Safe Crawl?\n\n"
+                "The tool will explore this application on its own, clicking ONLY controls it "
+                "has classified as read-only navigation: tabs, same-origin links, expanders and "
+                "pagination.\n\n"
+                "It never clicks Save, Delete, Submit, Import, Logout or anything it does not "
+                "recognise, never accepts a confirmation dialog, and never leaves this site.\n\n"
+                "Continue?"):
+            return
+        eng = self._ensure_engine()
+        eng.submit(lambda: eng.op_crawl(), op="crawl")
+
+    def on_workflow(self) -> None:
+        eng = self._ensure_engine()
+        if not self.training:
+            messagebox.showinfo(paths.APP_NAME,
+                                "Start Training first - a workflow is a named part of a "
+                                "training session.")
+            return
+        name = self.var_workflow.get().strip()
+        if self.b_workflow.cget("text") == "Record Workflow":
+            if not name:
+                messagebox.showwarning(paths.APP_NAME, "Give the workflow a name first.")
+                return
+            eng.submit(lambda: eng.op_begin_workflow(name), op="workflow")
+        else:
+            eng.submit(lambda: eng.op_end_workflow(), op="workflow")
+
     def on_clear_session(self) -> None:
         if not messagebox.askyesno(paths.APP_NAME, "Delete the saved authenticated session?"):
             return
@@ -252,13 +320,43 @@ class App(tk.Tk):
                 self.var_training.set("Training: ACTIVE")
                 self.b_train.configure(text="STOP TRAINING")
                 self.b_scan.configure(state="disabled")
+                self.b_crawl.configure(state="disabled")
             else:
                 self.var_training.set("Training: stopped")
                 self.b_train.configure(text="START TRAINING")
                 self.b_scan.configure(state="normal")
+                self.b_crawl.configure(state="normal")
+                self.b_workflow.configure(text="Record Workflow")
                 self._refresh_stats(ev.get("counts"))
         elif t == "training-progress":
             self._refresh_stats(ev.get("counts"))
+        elif t == "crawl":
+            self.crawling = bool(ev.get("active"))
+            if self.crawling:
+                self.var_crawl.set("Crawling...")
+                self.b_crawl.configure(state="disabled")
+                self.b_train.configure(state="disabled")
+            else:
+                summary = ev.get("summary") or {}
+                self.var_crawl.set(
+                    f"Crawl done: {summary.get('statesVisited', 0)} states, "
+                    f"{summary.get('actionsClicked', 0)} clicks")
+                self.b_crawl.configure(state="normal")
+                self.b_train.configure(state="normal")
+                self._append("INFO", f"Safe Crawl finished: {summary.get('statesVisited', 0)} "
+                                     f"states visited, {summary.get('newNavigationPaths', 0)} new "
+                                     f"paths, not clicked: {summary.get('skippedByReason')}")
+                self._refresh_stats(ev.get("counts"))
+        elif t == "workflow":
+            if ev.get("active"):
+                self.b_workflow.configure(text="Stop Workflow")
+                self._append("INFO", f"Recording workflow {ev.get('name')!r}")
+            else:
+                self.b_workflow.configure(text="Record Workflow")
+                wf = ev.get("workflow") or {}
+                if wf:
+                    self._append("INFO", f"Workflow {wf.get('name')!r} saved: "
+                                         f"{wf.get('stepCount')} steps")
         elif t == "error":
             self._append("ERROR", f"{ev.get('op')}: {ev.get('msg')}")
         elif t == "page-closed":

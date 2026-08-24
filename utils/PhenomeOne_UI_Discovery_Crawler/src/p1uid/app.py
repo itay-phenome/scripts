@@ -24,7 +24,8 @@ def _cli(args) -> int:
     log = get("cli")
     events: "queue.Queue[dict]" = queue.Queue()
     engine = Engine(events, headless=args.headless, remember_session=args.remember,
-                    validate_limit=args.validate_limit)
+                    validate_limit=args.validate_limit,
+                    generate_tests=args.generate_tests)
     engine.start()
     rc = 0
     try:
@@ -53,19 +54,58 @@ def _cli(args) -> int:
             engine.call(lambda: engine.op_scan(), timeout=300)
             if args.train_seconds:
                 engine.call(lambda: engine.op_start_training(), timeout=120)
+                if args.workflow:
+                    engine.call(lambda: engine.op_begin_workflow(args.workflow), timeout=60)
                 log.info("Training for %d s - drive the application now", args.train_seconds)
                 deadline = time.time() + args.train_seconds
                 while time.time() < deadline:
                     time.sleep(1)
                 engine.call(lambda: engine.op_stop_training(), timeout=300)
+            if args.crawl:
+                from .crawler.bfs import CrawlLimits
+                limits = CrawlLimits(max_states=args.crawl_max_states,
+                                     max_actions=args.crawl_max_actions,
+                                     max_depth=args.crawl_max_depth,
+                                     time_budget_s=args.crawl_seconds)
+                engine.call(lambda: engine.op_crawl(limits),
+                            timeout=args.crawl_seconds + 300)
         counts = engine.store.counts()
         log.info("Done: %d states, %d elements, %d navigation paths (HIGH=%d MEDIUM=%d LOW=%d)",
                  counts["states"], counts["elements"], counts["navigationPaths"],
                  counts["confidence"].get("HIGH", 0), counts["confidence"].get("MEDIUM", 0),
                  counts["confidence"].get("LOW", 0))
+        low = counts["confidence"].get("LOW", 0)
+        if args.fail_on_low >= 0 and low > args.fail_on_low:
+            log.error("CI gate: %d LOW-confidence locators exceeds the allowed %d",
+                      low, args.fail_on_low)
+            rc = 4
     finally:
         engine.shutdown_blocking()
     return rc
+
+
+def _diff(args) -> int:
+    """Compare two UI maps and write the diff reports. Exit 5 if they differ."""
+    from . import diff as uidiff
+
+    log = get("diff")
+    baseline, current = args.diff
+    try:
+        old = uidiff.load_map(baseline)
+        new = uidiff.load_map(current)
+    except (OSError, ValueError) as exc:
+        log.error("%s", exc)
+        return 2
+    result = uidiff.diff_maps(old, new)
+    uidiff.write_reports(result, paths.DIFF_JSON_FILE, paths.DIFF_REPORT_FILE)
+    for line in uidiff.render_lines(result):
+        print(line)
+    s = result["summary"]
+    log.info("UI diff: states +%d -%d ~%d | elements +%d -%d ~%d | locators changed %d | "
+             "paths +%d -%d", s["statesAdded"], s["statesRemoved"], s["statesChanged"],
+             s["elementsAdded"], s["elementsRemoved"], s["elementsChanged"],
+             s["locatorsChanged"], s["pathsAdded"], s["pathsRemoved"])
+    return 5 if result["hasChanges"] else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -86,6 +126,21 @@ def main(argv: list[str] | None = None) -> int:
                     help="max elements to validate per scan (default %(default)s)")
     ap.add_argument("--report-only", action="store_true",
                     help="regenerate reports from the existing UI map and exit")
+    ap.add_argument("--crawl", action="store_true",
+                    help="Safe Crawl: explore read-only navigation autonomously after login")
+    ap.add_argument("--crawl-max-states", type=int, default=40)
+    ap.add_argument("--crawl-max-actions", type=int, default=250)
+    ap.add_argument("--crawl-max-depth", type=int, default=6)
+    ap.add_argument("--crawl-seconds", type=float, default=300.0,
+                    help="wall-clock budget for the crawl (default %(default)s)")
+    ap.add_argument("--workflow", metavar="NAME",
+                    help="record the training session as a named workflow")
+    ap.add_argument("--generate-tests", action="store_true",
+                    help="emit Playwright assets into output/generated/")
+    ap.add_argument("--diff", nargs=2, metavar=("BASELINE", "CURRENT"),
+                    help="diff two ui-map.json files and exit")
+    ap.add_argument("--fail-on-low", type=int, default=-1, metavar="N",
+                    help="exit 4 when more than N LOW-confidence locators exist (CI gate)")
     ap.add_argument("--debug", action="store_true", help="verbose logging")
     ap.add_argument("--version", action="store_true")
     args = ap.parse_args(argv)
@@ -101,6 +156,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{paths.APP_NAME} 1.0.0")
         return 0
 
+    if args.diff:
+        return _diff(args)
     if args.cli or args.report_only:
         return _cli(args)
 

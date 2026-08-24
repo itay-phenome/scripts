@@ -25,7 +25,7 @@ from ..auth import login as auth_login
 from ..discovery import scanner
 from ..logging_setup import get, register_secret
 from ..navigation import graph as navgraph
-from ..reporting import html_report
+from ..reporting import html_report, junit
 from ..security.session_store import SessionStore
 from ..store.uimap import UIMapStore
 from ..training.trainer import Trainer
@@ -41,12 +41,14 @@ class Engine:
 
     def __init__(self, events: "queue.Queue[dict[str, Any]]", *,
                  headless: bool = False, remember_session: bool = False,
-                 validate_limit: int = 500, login_wait_s: float = 20.0) -> None:
+                 validate_limit: int = 500, login_wait_s: float = 20.0,
+                 generate_tests: bool = False) -> None:
         self.events = events
         self.headless = headless
         self.remember_session = remember_session
         self.validate_limit = validate_limit
         self.login_wait_s = login_wait_s
+        self.generate_tests = generate_tests
 
         self.loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
@@ -398,6 +400,12 @@ class Engine:
         html_report.write(self.store, paths.REPORT_FILE,
                           environments=self.store.data["application"].get("environments", []),
                           training_summary=training_summary)
+        junit.write(self.store, paths.JUNIT_FILE)
+        if self.generate_tests:
+            from .. import codegen
+            codegen.generate(self.store.data, paths.GENERATED_DIR,
+                             nav_graph=navgraph.build(self.store),
+                             source=paths.rel(paths.UI_MAP_FILE))
         log.info("Outputs written to %s and %s", paths.rel(paths.OUTPUT_DIR), paths.rel(paths.REPORTS_DIR))
 
     # ------------------------------------------------------------ shutdown
