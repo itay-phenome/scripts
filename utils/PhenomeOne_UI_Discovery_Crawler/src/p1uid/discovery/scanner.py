@@ -41,6 +41,8 @@ class ScanResult:
     timings_ms: dict[str, int] = field(default_factory=dict)
     structure: dict[str, Any] = field(default_factory=dict)
     stability: dict[str, Any] | None = None
+    # (frame, element_record, preferred_locator) - only when keep_rows=True.
+    rows: list[tuple[Any, dict[str, Any], Any]] = field(default_factory=list)
 
 
 def _reuse_validation(store, sid: str, row: dict[str, Any]) -> bool:
@@ -98,7 +100,8 @@ async def collect_frame(frame: Any, max_elements: int = 1500) -> dict[str, Any] 
 async def scan_page(page: Any, store, origin: str = "", validate: bool = True,
                     validate_limit: int = 500, max_elements: int = 1500,
                     validate_new_only: bool = False,
-                    stabilise: bool = False) -> ScanResult | None:
+                    stabilise: bool = False,
+                    keep_rows: bool = False) -> ScanResult | None:
     """Full scan of the page's current UI state, merged into `store`.
 
     `validate_new_only` reuses the previously validated result for an element
@@ -197,6 +200,8 @@ async def scan_page(page: Any, store, origin: str = "", validate: bool = True,
             res.confidence[r["pref"].confidence] = res.confidence.get(r["pref"].confidence, 0) + 1
     t_merge = time.perf_counter()
 
+    if keep_rows:
+        res.rows = [(frame, r["el"], r["pref"]) for frame, rows in per_frame for r in rows]
     res.elements = total_elements
     res.added = added
     res.timings_ms = {

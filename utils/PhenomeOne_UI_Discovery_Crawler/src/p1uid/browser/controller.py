@@ -155,6 +155,9 @@ class Engine:
             no_viewport=not self.headless,
             storage_state=storage,
             ignore_https_errors=True,
+            # The tool never wants a file: refusing at the context level means an
+            # accidental download link cannot write anything to disk.
+            accept_downloads=False,
         )
         await self.context.expose_binding(BINDING, self._on_binding)
         await self.context.add_init_script(script=CORE_JS)
