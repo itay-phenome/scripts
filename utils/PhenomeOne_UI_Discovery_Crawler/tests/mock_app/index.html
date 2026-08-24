@@ -1,0 +1,262 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PhenomeOne (mock)</title>
+<style>
+ body{font:14px/1.5 Segoe UI,sans-serif;margin:0;color:#222}
+ header{background:#0f3d2e;color:#fff;padding:10px 18px;display:flex;gap:18px;align-items:center}
+ header a{color:#cfe9df;text-decoration:none}
+ main{padding:18px 22px}
+ [role=tablist]{display:flex;gap:2px;border-bottom:2px solid #ddd;margin:14px 0}
+ [role=tab]{padding:8px 14px;border:1px solid #ddd;border-bottom:none;background:#f6f6f6;cursor:pointer}
+ [role=tab][aria-selected=true]{background:#fff;font-weight:600;border-bottom:2px solid #fff;margin-bottom:-2px}
+ table{border-collapse:collapse;width:100%;max-width:820px}
+ th,td{border:1px solid #ddd;padding:6px 9px;text-align:left}
+ th{background:#f2f5f4}
+ .toolbar{display:flex;gap:8px;align-items:center;margin:10px 0}
+ dialog{border:1px solid #999;border-radius:6px;padding:18px;min-width:380px}
+ dialog::backdrop{background:rgba(0,0,0,.4)}
+ [role=menu]{position:absolute;background:#fff;border:1px solid #ccc;box-shadow:0 4px 12px rgba(0,0,0,.15);padding:4px 0}
+ [role=menuitem]{display:block;padding:6px 18px;cursor:pointer;background:none;border:none;width:100%;text-align:left}
+ [role=tree]{list-style:none;padding-left:14px}
+ label{display:block;margin:8px 0 2px;font-weight:600}
+ input,select,textarea{padding:5px 7px;border:1px solid #bbb;border-radius:3px}
+ .hidden{display:none}
+ .err{color:#b00}
+</style>
+
+<!-- ============================ LOGIN ============================ -->
+<section id="login-view" style="display:none">
+  <main>
+    <h1>PhenomeOne</h1>
+    <form id="login-form">
+      <label for="user">Username</label>
+      <input id="user" name="username" type="text" autocomplete="username" placeholder="you@example.com">
+      <label for="pw">Password</label>
+      <input id="pw" name="password" type="password" autocomplete="current-password">
+      <p><button type="submit" data-testid="login-submit">Log In</button>
+         <a href="#reset">Forgot password?</a></p>
+      <p id="login-error" class="err hidden" role="alert">Invalid credentials</p>
+    </form>
+  </main>
+</section>
+
+<!-- ============================= APP ============================= -->
+<section id="app-view" class="hidden">
+  <header>
+    <strong>PhenomeOne</strong>
+    <a href="/app/" data-nav="home">Home</a>
+    <a href="/app/research-groups" data-nav="groups" data-testid="nav-research-groups">Research Groups</a>
+    <span style="flex:1"></span>
+    <button id="actions-btn" aria-haspopup="menu" aria-expanded="false">Actions</button>
+    <div id="actions-menu" role="menu" aria-label="Actions" class="hidden">
+      <button role="menuitem">Export</button>
+      <button role="menuitem">Refresh</button>
+    </div>
+  </header>
+  <main id="main" role="main"></main>
+</section>
+
+<!-- ========================== DIALOG ============================= -->
+<dialog id="add-dialog" aria-labelledby="add-title">
+  <h2 id="add-title">Add Germplasm</h2>
+  <form id="add-form">
+    <label for="g-name">Name</label>
+    <input id="g-name" name="name" type="text">
+    <label for="g-type">Type</label>
+    <select id="g-type" name="type"><option>Inbred</option><option>Hybrid</option></select>
+    <p>
+      <button type="button" data-testid="germplasm-save">Save</button>
+      <button type="button" id="dlg-cancel">Cancel</button>
+      <button type="button" id="dlg-close" aria-label="Close dialog">&times;</button>
+    </p>
+  </form>
+</dialog>
+
+<section id="landing-view" class="hidden">
+  <main><h1>PhenomeOne</h1><p>Welcome.</p><button id="landing-signin">Sign in</button></main>
+</section>
+
+<script>
+const TABS = ["Overview","Germplasms","Variables","Observations","Cultivars","Images","Inventory","Entities"];
+let activeTab = "Overview";
+const AUTODRIVE = location.search.includes("autodrive");
+const PARAMS = new URLSearchParams(location.search);
+const BOOT_DELAY = parseInt(PARAMS.get("delay") || "0", 10);
+const LANDING = PARAMS.has("landing");
+
+function showLoginForm() {
+  document.getElementById("landing-view").classList.add("hidden");
+  document.getElementById("login-view").style.display = "";
+}
+
+// Boot: optionally slow, optionally behind a landing page.
+setTimeout(() => {
+  if (LANDING) {
+    document.getElementById("landing-view").classList.remove("hidden");
+    document.getElementById("landing-signin").addEventListener("click", showLoginForm);
+  } else {
+    showLoginForm();
+  }
+}, BOOT_DELAY);
+
+const $ = (s) => document.querySelector(s);
+const main = () => $("#main");
+
+/* ---------------------------------------------------------- login */
+$("#login-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!$("#user").value || !$("#pw").value) { $("#login-error").classList.remove("hidden"); return; }
+  $("#login-view").classList.add("hidden");
+  $("#app-view").classList.remove("hidden");
+  document.title = "PhenomeOne - Home";
+  go("/app/", "home");
+  if (AUTODRIVE) autodrive();
+});
+
+/* ------------------------------------------------------- routing */
+function go(path, view) {
+  history.pushState({view}, "", path);
+  render(view);
+}
+window.addEventListener("popstate", (e) => render((e.state && e.state.view) || "home"));
+
+document.addEventListener("click", (e) => {
+  const nav = e.target.closest("[data-nav]");
+  if (nav) {
+    e.preventDefault();
+    go(nav.getAttribute("href"), nav.dataset.nav);
+  }
+});
+
+/* ------------------------------------------------------ rendering */
+function render(view) {
+  if (view === "home") {
+    document.title = "PhenomeOne - Home";
+    main().innerHTML = `<h1>Home</h1>
+      <p>Welcome back.</p>
+      <button data-testid="home-new-group">New Research Group</button>
+      <button>Refresh</button>`;
+  } else if (view === "groups") {
+    document.title = "PhenomeOne - Research Groups";
+    main().innerHTML = `<h1>Research Groups</h1>
+      <div class="toolbar">
+        <input type="search" id="mat-input-4821" placeholder="Search groups" aria-label="Search groups">
+        <button>Refresh</button>
+      </div>
+      <table><caption>Research Groups</caption>
+      <thead><tr><th>Name</th><th>Type</th><th>Created</th></tr></thead>
+      <tbody>
+        <tr><td><a href="/app/research-group/123" data-nav="group">Research Group ABC</a></td><td>Field</td><td>2025-02-11</td></tr>
+        <tr><td><a href="/app/research-group/456" data-nav="group">Research Group XYZ</a></td><td>Greenhouse</td><td>2025-03-02</td></tr>
+      </tbody></table>`;
+  } else if (view === "group") {
+    document.title = "PhenomeOne - Research Group ABC";
+    main().innerHTML = `<h1>Research Group ABC</h1>
+      <div role="tablist" aria-label="Research group sections">${
+        TABS.map(t => `<button role="tab" aria-selected="${t===activeTab}" data-tab="${t}">${t}</button>`).join("")
+      }</div>
+      <div role="tabpanel" id="panel"></div>`;
+    renderPanel();
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const tab = e.target.closest("[role=tab]");
+  if (!tab) return;
+  activeTab = tab.dataset.tab;                       // NOTE: no URL change - on purpose
+  document.querySelectorAll("[role=tab]").forEach(t =>
+    t.setAttribute("aria-selected", String(t.dataset.tab === activeTab)));
+  renderPanel();
+});
+
+function renderPanel() {
+  const p = $("#panel");
+  if (!p) return;
+  if (activeTab === "Germplasms") {
+    p.innerHTML = `<div class="toolbar" role="toolbar" aria-label="Germplasm actions">
+        <button data-testid="germplasm-add" id="add-germplasm">Add Germplasm</button>
+        <button>Import</button>
+        <input type="search" placeholder="Filter germplasms" aria-label="Filter germplasms">
+      </div>
+      <table role="grid" aria-label="Germplasms">
+        <thead><tr><th>Name</th><th>Type</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr><td>GP-001</td><td>Inbred</td><td>2025-01-04</td><td><button>Edit</button> <button>Delete</button></td></tr>
+          <tr><td>GP-002</td><td>Hybrid</td><td>2025-01-06</td><td><button>Edit</button> <button>Delete</button></td></tr>
+        </tbody>
+      </table>
+      <nav aria-label="Pagination"><button aria-label="Previous page">Prev</button>
+        <button aria-label="Next page">Next</button></nav>`;
+  } else if (activeTab === "Variables") {
+    p.innerHTML = `<ul role="tree" aria-label="Variables">
+        <li role="treeitem" aria-expanded="false" tabindex="0">Agronomic
+          <ul role="group" class="hidden"><li role="treeitem">Plant height</li></ul></li>
+        <li role="treeitem" aria-expanded="false" tabindex="0">Quality</li>
+      </ul>
+      <button>New Variable</button>`;
+  } else if (activeTab === "Observations") {
+    p.innerHTML = `<form>
+        <label for="obs-season">Season</label>
+        <select id="obs-season" name="season"><option>2024</option><option>2025</option></select>
+        <label for="obs-notes">Notes</label>
+        <textarea id="obs-notes" name="notes" rows="3"></textarea>
+        <label><input type="checkbox" id="obs-only-mine"> Only my observations</label>
+        <p><button type="button" role="switch" aria-checked="false" id="obs-live">Live updates</button></p>
+        <p><button type="button" data-testid="observations-apply">Apply</button>
+           <button type="reset">Reset</button></p>
+      </form>`;
+  } else {
+    p.innerHTML = `<h2>${activeTab}</h2><p>${activeTab} content.</p><button>Edit</button>`;
+  }
+}
+
+/* ------------------------------------------------------- autodrive
+   Used only by the packaged-build test: after login the page walks itself
+   through a few screens so training can be exercised without a human. */
+function autodrive() {
+  const seq = [
+    () => document.querySelector('[data-nav=groups]').click(),
+    () => document.querySelector('[data-nav=group]').click(),
+    () => document.querySelector('[role=tab][data-tab=Germplasms]').click(),
+    () => document.querySelector('#add-germplasm').click(),
+    () => document.querySelector('#dlg-close').click(),
+    () => document.querySelector('[role=tab][data-tab=Variables]').click(),
+  ];
+  let i = 0;
+  const step = () => {
+    if (i >= seq.length) return;
+    try { seq[i++](); } catch (e) { /* keep going */ }
+    setTimeout(step, 1300);
+  };
+  // Only start once Training Mode is observing, so the walk is deterministic
+  // regardless of how long login and the first scan take.
+  const waitForObserver = () => {
+    const core = window.__p1uidCore;
+    if (core && typeof core.isObserving === "function" && core.isObserving()) step();
+    else setTimeout(waitForObserver, 250);
+  };
+  waitForObserver();
+}
+
+/* --------------------------------------------------- interactions */
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#add-germplasm")) $("#add-dialog").showModal();
+  if (e.target.closest("#dlg-cancel") || e.target.closest("#dlg-close")) $("#add-dialog").close();
+  if (e.target.closest("[data-testid=germplasm-save]")) $("#add-dialog").close();
+
+  const ab = e.target.closest("#actions-btn");
+  if (ab) {
+    const open = $("#actions-menu").classList.toggle("hidden");
+    ab.setAttribute("aria-expanded", String(!open));
+  }
+  const ti = e.target.closest("[role=treeitem]");
+  if (ti && ti.hasAttribute("aria-expanded")) {
+    const now = ti.getAttribute("aria-expanded") !== "true";
+    ti.setAttribute("aria-expanded", String(now));
+    const sub = ti.querySelector("[role=group]");
+    if (sub) sub.classList.toggle("hidden", !now);
+  }
+  const sw = e.target.closest("[role=switch]");
+  if (sw) sw.setAttribute("aria-checked", sw.getAttribute("aria-checked") !== "true" ? "true" : "false");
+});
+</script>

@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sign in</title>
+<style>body{font:14px/1.5 Segoe UI,sans-serif;padding:18px}
+ label{display:block;margin:8px 0 2px;font-weight:600}
+ input{padding:5px 7px;border:1px solid #bbb;border-radius:3px}</style>
+<!-- Stands in for an identity-provider form embedded in an iframe: the parent
+     page contains no password field at all, so a main-frame-only search fails. -->
+<form id="f">
+  <label for="u">Username</label>
+  <input id="u" name="username" type="text" autocomplete="username">
+  <label for="p">Password</label>
+  <input id="p" name="password" type="password" autocomplete="current-password">
+  <p><button type="submit">Sign in</button></p>
+</form>
+<script>
+document.getElementById("f").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!document.getElementById("u").value || !document.getElementById("p").value) return;
+  parent.postMessage({ p1uidMockAuth: true }, "*");   // parent tears this iframe down
+});
+</script>

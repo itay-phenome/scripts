@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PhenomeOne (iframe login mock)</title>
+<style>
+ body{font:14px/1.5 Segoe UI,sans-serif;margin:0;color:#222}
+ main{padding:18px 22px}
+ iframe{width:420px;height:260px;border:1px solid #ccc}
+</style>
+<main id="root" role="main">
+  <h1>PhenomeOne</h1>
+  <p>Authenticating via the identity provider.</p>
+  <iframe id="idp" src="login_frame.html" title="Sign in"></iframe>
+</main>
+<script>
+window.addEventListener("message", (e) => {
+  if (!e.data || !e.data.p1uidMockAuth) return;
+  // The IdP iframe is destroyed on success - the tool must still notice that
+  // no password field remains anywhere, rather than waiting on a dead frame.
+  document.getElementById("idp").remove();
+  document.title = "PhenomeOne - Home";
+  document.getElementById("root").innerHTML =
+    '<h1>Home</h1><p>Welcome back.</p>' +
+    '<button data-testid="home-new-group">New Research Group</button> ' +
+    '<button>Refresh</button>';
+});
+</script>

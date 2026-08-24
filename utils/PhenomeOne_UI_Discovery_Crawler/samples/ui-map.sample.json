@@ -1,0 +1,2455 @@
+{
+ "schemaVersion": 1,
+ "application": {
+  "name": "PhenomeOne",
+  "environments": [
+   {
+    "origin": "http://127.0.0.1:51778",
+    "firstSeen": "2026-08-24T21:24:59",
+    "lastSeen": "2026-08-24T21:25:06",
+    "timesSeen": 9
+   }
+  ]
+ },
+ "createdAt": "2026-08-24T21:24:56",
+ "updatedAt": "2026-08-24T21:25:21",
+ "states": {
+  "research-group-germplasms": {
+   "id": "research-group-germplasms",
+   "fingerprint": "5f22ae4ef83f",
+   "firstSeen": "2026-08-24T21:25:02",
+   "timesSeen": 2,
+   "elements": {
+    "main:main:#0": {
+     "key": "main:main:#0",
+     "logicalName": "Main",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('main').nth(0)",
+       "strategy": "structural",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "main",
+     "role": "main",
+     "name": "",
+     "tag": "main",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "structural",
+      "tier": 7,
+      "js": "getByRole('main').nth(0)",
+      "python": "get_by_role(\"main\").nth(0)",
+      "args": {
+       "role": "main",
+       "nth": 0
+      },
+      "est_matches": 2,
+      "matches": 1,
+      "unique": true,
+      "visible": false,
+      "enabled": true,
+      "confidence": "LOW",
+      "validation": "live",
+      "notes": [
+       "positional locator - will break when the page changes"
+      ]
+     },
+     "confidence": "LOW",
+     "alternatives": [],
+     "recommendation": "Add 'research-group-germplasms-main' as a data-testid on this main to make it deterministically locatable"
+    },
+    "heading:heading:phenomeone": {
+     "key": "heading:heading:phenomeone",
+     "logicalName": "PhenomeOne Heading",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('heading', { name: 'PhenomeOne', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "heading",
+     "role": "heading",
+     "name": "PhenomeOne",
+     "nameSource": "content",
+     "tag": "h1",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('heading', { name: 'PhenomeOne', exact: true })",
+      "python": "get_by_role(\"heading\", name=\"PhenomeOne\", exact=True)",
+      "args": {
+       "role": "heading",
+       "name": "PhenomeOne",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": []
+    },
+    "form:form:login-form": {
+     "key": "form:form:login-form",
+     "logicalName": "Form",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "locator('#login-form')",
+       "strategy": "css",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "form",
+     "role": "form",
+     "name": "",
+     "tag": "form",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "css",
+      "tier": 4,
+      "js": "locator('#login-form')",
+      "python": "locator(\"#login-form\")",
+      "args": {
+       "css": "#login-form",
+       "via": "id"
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "live"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": []
+    },
+    "textbox:textbox:username": {
+     "key": "textbox:textbox:username",
+     "logicalName": "Username Textbox",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('textbox', { name: 'Username', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "textbox",
+     "role": "textbox",
+     "name": "Username",
+     "nameSource": "label",
+     "tag": "input",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('textbox', { name: 'Username', exact: true })",
+      "python": "get_by_role(\"textbox\", name=\"Username\", exact=True)",
+      "args": {
+       "role": "textbox",
+       "name": "Username",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "label",
+       "js": "getByLabel('Username', { exact: true })",
+       "confidence": "HIGH",
+       "estMatches": 1
+      },
+      {
+       "strategy": "placeholder",
+       "js": "getByPlaceholder('you@example.com', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "password:textbox:password": {
+     "key": "password:textbox:password",
+     "logicalName": "Password Password",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('textbox', { name: 'Password', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "password",
+     "role": "textbox",
+     "name": "Password",
+     "nameSource": "label",
+     "tag": "input",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('textbox', { name: 'Password', exact: true })",
+      "python": "get_by_role(\"textbox\", name=\"Password\", exact=True)",
+      "args": {
+       "role": "textbox",
+       "name": "Password",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "label",
+       "js": "getByLabel('Password', { exact: true })",
+       "confidence": "HIGH",
+       "estMatches": 1
+      },
+      {
+       "strategy": "css",
+       "js": "locator('#pw')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "button#data-testid=login-submit": {
+     "key": "button#data-testid=login-submit",
+     "logicalName": "Log In Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByTestId('login-submit')",
+       "strategy": "testid",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Log In",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": false,
+     "enabled": true,
+     "testIds": {
+      "data-testid": "login-submit"
+     },
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "testid",
+      "tier": 1,
+      "js": "getByTestId('login-submit')",
+      "python": "get_by_test_id(\"login-submit\")",
+      "args": {
+       "attribute": "data-testid",
+       "value": "login-submit"
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": false,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "role",
+       "js": "getByRole('button', { name: 'Log In', exact: true })",
+       "confidence": "HIGH",
+       "estMatches": 1
+      },
+      {
+       "strategy": "text",
+       "js": "getByText('Log In', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "link:link:forgot password?": {
+     "key": "link:link:forgot password?",
+     "logicalName": "Forgot password? Link",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('link', { name: 'Forgot password?', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "link",
+     "role": "link",
+     "name": "Forgot password?",
+     "nameSource": "content",
+     "tag": "a",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('link', { name: 'Forgot password?', exact: true })",
+      "python": "get_by_role(\"link\", name=\"Forgot password?\", exact=True)",
+      "args": {
+       "role": "link",
+       "name": "Forgot password?",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Forgot password?', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "alert:alert:invalid credentials": {
+     "key": "alert:alert:invalid credentials",
+     "logicalName": "Invalid credentials Alert",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "locator('#login-error')",
+       "strategy": "css",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "alert",
+     "role": "alert",
+     "name": "",
+     "tag": "p",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "css",
+      "tier": 4,
+      "js": "locator('#login-error')",
+      "python": "locator(\"#login-error\")",
+      "args": {
+       "css": "#login-error",
+       "via": "id"
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "live"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "css",
+       "js": "locator('[role=\"alert\"]')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "link:link:home": {
+     "key": "link:link:home",
+     "logicalName": "Home Link",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('link', { name: 'Home', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "link",
+     "role": "link",
+     "name": "Home",
+     "nameSource": "content",
+     "tag": "a",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('link', { name: 'Home', exact: true })",
+      "python": "get_by_role(\"link\", name=\"Home\", exact=True)",
+      "args": {
+       "role": "link",
+       "name": "Home",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Home', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "link#data-testid=nav-research-groups": {
+     "key": "link#data-testid=nav-research-groups",
+     "logicalName": "Research Groups Link",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByTestId('nav-research-groups')",
+       "strategy": "testid",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "link",
+     "role": "link",
+     "name": "Research Groups",
+     "nameSource": "content",
+     "tag": "a",
+     "visible": true,
+     "enabled": true,
+     "testIds": {
+      "data-testid": "nav-research-groups"
+     },
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "testid",
+      "tier": 1,
+      "js": "getByTestId('nav-research-groups')",
+      "python": "get_by_test_id(\"nav-research-groups\")",
+      "args": {
+       "attribute": "data-testid",
+       "value": "nav-research-groups"
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "role",
+       "js": "getByRole('link', { name: 'Research Groups', exact: true })",
+       "confidence": "HIGH",
+       "estMatches": 1
+      },
+      {
+       "strategy": "text",
+       "js": "getByText('Research Groups', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "button:button:actions": {
+     "key": "button:button:actions",
+     "logicalName": "Actions Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('button', { name: 'Actions', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Actions",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "expandable": true,
+     "expanded": false,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('button', { name: 'Actions', exact: true })",
+      "python": "get_by_role(\"button\", name=\"Actions\", exact=True)",
+      "args": {
+       "role": "button",
+       "name": "Actions",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "css",
+       "js": "locator('#actions-btn')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      },
+      {
+       "strategy": "text",
+       "js": "getByText('Actions', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "menu:menu:actions": {
+     "key": "menu:menu:actions",
+     "logicalName": "Actions Menu",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('menu', { name: 'Actions', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "menu",
+     "role": "menu",
+     "name": "Actions",
+     "nameSource": "aria-label",
+     "tag": "div",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('menu', { name: 'Actions', exact: true })",
+      "python": "get_by_role(\"menu\", name=\"Actions\", exact=True)",
+      "args": {
+       "role": "menu",
+       "name": "Actions",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "css",
+       "js": "locator('#actions-menu')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "menuitem:menuitem:export": {
+     "key": "menuitem:menuitem:export",
+     "logicalName": "Export Menuitem",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('menuitem', { name: 'Export', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "menuitem",
+     "role": "menuitem",
+     "name": "Export",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('menuitem', { name: 'Export', exact: true })",
+      "python": "get_by_role(\"menuitem\", name=\"Export\", exact=True)",
+      "args": {
+       "role": "menuitem",
+       "name": "Export",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Export', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "menuitem:menuitem:refresh": {
+     "key": "menuitem:menuitem:refresh",
+     "logicalName": "Refresh Menuitem",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('menuitem', { name: 'Refresh', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "menuitem",
+     "role": "menuitem",
+     "name": "Refresh",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('menuitem', { name: 'Refresh', exact: true })",
+      "python": "get_by_role(\"menuitem\", name=\"Refresh\", exact=True)",
+      "args": {
+       "role": "menuitem",
+       "name": "Refresh",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Refresh', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "main:main:main": {
+     "key": "main:main:main",
+     "logicalName": "Main",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "locator('#main')",
+       "strategy": "css",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "main",
+     "role": "main",
+     "name": "",
+     "tag": "main",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "css",
+      "tier": 4,
+      "js": "locator('#main')",
+      "python": "locator(\"#main\")",
+      "args": {
+       "css": "#main",
+       "via": "id"
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "live"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "css",
+       "js": "locator('[role=\"main\"]')",
+       "confidence": "LOW",
+       "estMatches": 2
+      }
+     ]
+    },
+    "heading:heading:research group abc": {
+     "key": "heading:heading:research group abc",
+     "logicalName": "Research Group ABC Heading",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('heading', { name: 'Research Group ABC', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "heading",
+     "role": "heading",
+     "name": "Research Group ABC",
+     "nameSource": "content",
+     "tag": "h1",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('heading', { name: 'Research Group ABC', exact: true })",
+      "python": "get_by_role(\"heading\", name=\"Research Group ABC\", exact=True)",
+      "args": {
+       "role": "heading",
+       "name": "Research Group ABC",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": []
+    },
+    "tablist:tablist:research group sections": {
+     "key": "tablist:tablist:research group sections",
+     "logicalName": "Research group sections Tablist",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('tablist', { name: 'Research group sections', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "tablist",
+     "role": "tablist",
+     "name": "Research group sections",
+     "nameSource": "aria-label",
+     "tag": "div",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('tablist', { name: 'Research group sections', exact: true })",
+      "python": "get_by_role(\"tablist\", name=\"Research group sections\", exact=True)",
+      "args": {
+       "role": "tablist",
+       "name": "Research group sections",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": []
+    },
+    "tab:tab:overview": {
+     "key": "tab:tab:overview",
+     "logicalName": "Overview Tab",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('tab', { name: 'Overview', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "tab",
+     "role": "tab",
+     "name": "Overview",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "selected": false,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('tab', { name: 'Overview', exact: true })",
+      "python": "get_by_role(\"tab\", name=\"Overview\", exact=True)",
+      "args": {
+       "role": "tab",
+       "name": "Overview",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Overview', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "tab:tab:germplasms": {
+     "key": "tab:tab:germplasms",
+     "logicalName": "Germplasms Tab",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('tab', { name: 'Germplasms', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "tab",
+     "role": "tab",
+     "name": "Germplasms",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "selected": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('tab', { name: 'Germplasms', exact: true })",
+      "python": "get_by_role(\"tab\", name=\"Germplasms\", exact=True)",
+      "args": {
+       "role": "tab",
+       "name": "Germplasms",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Germplasms', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "tab:tab:variables": {
+     "key": "tab:tab:variables",
+     "logicalName": "Variables Tab",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('tab', { name: 'Variables', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "tab",
+     "role": "tab",
+     "name": "Variables",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "selected": false,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('tab', { name: 'Variables', exact: true })",
+      "python": "get_by_role(\"tab\", name=\"Variables\", exact=True)",
+      "args": {
+       "role": "tab",
+       "name": "Variables",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Variables', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "tab:tab:observations": {
+     "key": "tab:tab:observations",
+     "logicalName": "Observations Tab",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('tab', { name: 'Observations', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "tab",
+     "role": "tab",
+     "name": "Observations",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "selected": false,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('tab', { name: 'Observations', exact: true })",
+      "python": "get_by_role(\"tab\", name=\"Observations\", exact=True)",
+      "args": {
+       "role": "tab",
+       "name": "Observations",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Observations', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "tab:tab:cultivars": {
+     "key": "tab:tab:cultivars",
+     "logicalName": "Cultivars Tab",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('tab', { name: 'Cultivars', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "tab",
+     "role": "tab",
+     "name": "Cultivars",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "selected": false,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('tab', { name: 'Cultivars', exact: true })",
+      "python": "get_by_role(\"tab\", name=\"Cultivars\", exact=True)",
+      "args": {
+       "role": "tab",
+       "name": "Cultivars",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Cultivars', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "tab:tab:images": {
+     "key": "tab:tab:images",
+     "logicalName": "Images Tab",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('tab', { name: 'Images', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "tab",
+     "role": "tab",
+     "name": "Images",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "selected": false,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('tab', { name: 'Images', exact: true })",
+      "python": "get_by_role(\"tab\", name=\"Images\", exact=True)",
+      "args": {
+       "role": "tab",
+       "name": "Images",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Images', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "tab:tab:inventory": {
+     "key": "tab:tab:inventory",
+     "logicalName": "Inventory Tab",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('tab', { name: 'Inventory', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "tab",
+     "role": "tab",
+     "name": "Inventory",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "selected": false,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('tab', { name: 'Inventory', exact: true })",
+      "python": "get_by_role(\"tab\", name=\"Inventory\", exact=True)",
+      "args": {
+       "role": "tab",
+       "name": "Inventory",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Inventory', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "tab:tab:entities": {
+     "key": "tab:tab:entities",
+     "logicalName": "Entities Tab",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('tab', { name: 'Entities', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "tab",
+     "role": "tab",
+     "name": "Entities",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "selected": false,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('tab', { name: 'Entities', exact: true })",
+      "python": "get_by_role(\"tab\", name=\"Entities\", exact=True)",
+      "args": {
+       "role": "tab",
+       "name": "Entities",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Entities', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "tabpanel:tabpanel:panel": {
+     "key": "tabpanel:tabpanel:panel",
+     "logicalName": "Tabpanel",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "locator('#panel')",
+       "strategy": "css",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "tabpanel",
+     "role": "tabpanel",
+     "name": "",
+     "tag": "div",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "css",
+      "tier": 4,
+      "js": "locator('#panel')",
+      "python": "locator(\"#panel\")",
+      "args": {
+       "css": "#panel",
+       "via": "id"
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "live"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "css",
+       "js": "locator('[role=\"tabpanel\"]')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "toolbar:toolbar:germplasm actions": {
+     "key": "toolbar:toolbar:germplasm actions",
+     "logicalName": "Germplasm actions Toolbar",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('toolbar', { name: 'Germplasm actions', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "toolbar",
+     "role": "toolbar",
+     "name": "Germplasm actions",
+     "nameSource": "aria-label",
+     "tag": "div",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('toolbar', { name: 'Germplasm actions', exact: true })",
+      "python": "get_by_role(\"toolbar\", name=\"Germplasm actions\", exact=True)",
+      "args": {
+       "role": "toolbar",
+       "name": "Germplasm actions",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": []
+    },
+    "button#data-testid=germplasm-add": {
+     "key": "button#data-testid=germplasm-add",
+     "logicalName": "Add Germplasm Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByTestId('germplasm-add')",
+       "strategy": "testid",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Add Germplasm",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "testIds": {
+      "data-testid": "germplasm-add"
+     },
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "testid",
+      "tier": 1,
+      "js": "getByTestId('germplasm-add')",
+      "python": "get_by_test_id(\"germplasm-add\")",
+      "args": {
+       "attribute": "data-testid",
+       "value": "germplasm-add"
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "role",
+       "js": "getByRole('button', { name: 'Add Germplasm', exact: true })",
+       "confidence": "HIGH",
+       "estMatches": 1
+      },
+      {
+       "strategy": "css",
+       "js": "locator('#add-germplasm')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "button:button:import": {
+     "key": "button:button:import",
+     "logicalName": "Import Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('button', { name: 'Import', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Import",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('button', { name: 'Import', exact: true })",
+      "python": "get_by_role(\"button\", name=\"Import\", exact=True)",
+      "args": {
+       "role": "button",
+       "name": "Import",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Import', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "searchbox:searchbox:filter germplasms": {
+     "key": "searchbox:searchbox:filter germplasms",
+     "logicalName": "Filter germplasms Searchbox",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('searchbox', { name: 'Filter germplasms', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "searchbox",
+     "role": "searchbox",
+     "name": "Filter germplasms",
+     "nameSource": "aria-label",
+     "tag": "input",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('searchbox', { name: 'Filter germplasms', exact: true })",
+      "python": "get_by_role(\"searchbox\", name=\"Filter germplasms\", exact=True)",
+      "args": {
+       "role": "searchbox",
+       "name": "Filter germplasms",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "placeholder",
+       "js": "getByPlaceholder('Filter germplasms', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "grid:grid:germplasms": {
+     "key": "grid:grid:germplasms",
+     "logicalName": "Germplasms Grid",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('grid', { name: 'Germplasms', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "grid",
+     "role": "grid",
+     "name": "Germplasms",
+     "nameSource": "aria-label",
+     "tag": "table",
+     "visible": true,
+     "enabled": true,
+     "grid": {
+      "columns": [
+       "Name",
+       "Type",
+       "Created",
+       "Actions"
+      ],
+      "rowCount": 2
+     },
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('grid', { name: 'Germplasms', exact: true })",
+      "python": "get_by_role(\"grid\", name=\"Germplasms\", exact=True)",
+      "args": {
+       "role": "grid",
+       "name": "Germplasms",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": []
+    },
+    "button:button:edit": {
+     "key": "button:button:edit",
+     "logicalName": "Edit Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 4,
+     "locatorHistory": [
+      {
+       "js": "getByRole('button', { name: 'Edit', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 4
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Edit",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('button', { name: 'Edit', exact: true })",
+      "python": "get_by_role(\"button\", name=\"Edit\", exact=True)",
+      "args": {
+       "role": "button",
+       "name": "Edit",
+       "exact": true
+      },
+      "est_matches": 2,
+      "matches": 2,
+      "unique": false,
+      "visible": true,
+      "enabled": true,
+      "confidence": "LOW",
+      "validation": "live"
+     },
+     "confidence": "LOW",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Edit', { exact: true })",
+       "confidence": "LOW",
+       "estMatches": 2
+      }
+     ],
+     "recommendation": "Add 'research-group-germplasms-edit-button' as a data-testid on this button to make it deterministically locatable"
+    },
+    "button:button:delete": {
+     "key": "button:button:delete",
+     "logicalName": "Delete Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 4,
+     "locatorHistory": [
+      {
+       "js": "getByRole('button', { name: 'Delete', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 4
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Delete",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('button', { name: 'Delete', exact: true })",
+      "python": "get_by_role(\"button\", name=\"Delete\", exact=True)",
+      "args": {
+       "role": "button",
+       "name": "Delete",
+       "exact": true
+      },
+      "est_matches": 2,
+      "matches": 2,
+      "unique": false,
+      "visible": true,
+      "enabled": true,
+      "confidence": "LOW",
+      "validation": "live"
+     },
+     "confidence": "LOW",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Delete', { exact: true })",
+       "confidence": "LOW",
+       "estMatches": 2
+      }
+     ],
+     "recommendation": "Add 'research-group-germplasms-delete-button' as a data-testid on this button to make it deterministically locatable"
+    },
+    "pagination:navigation:pagination": {
+     "key": "pagination:navigation:pagination",
+     "logicalName": "Pagination Pagination",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('navigation', { name: 'Pagination', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "pagination",
+     "role": "navigation",
+     "name": "Pagination",
+     "nameSource": "aria-label",
+     "tag": "nav",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('navigation', { name: 'Pagination', exact: true })",
+      "python": "get_by_role(\"navigation\", name=\"Pagination\", exact=True)",
+      "args": {
+       "role": "navigation",
+       "name": "Pagination",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": []
+    },
+    "button:button:previous page": {
+     "key": "button:button:previous page",
+     "logicalName": "Previous page Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('button', { name: 'Previous page', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Previous page",
+     "nameSource": "aria-label",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('button', { name: 'Previous page', exact: true })",
+      "python": "get_by_role(\"button\", name=\"Previous page\", exact=True)",
+      "args": {
+       "role": "button",
+       "name": "Previous page",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Prev', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "button:button:next page": {
+     "key": "button:button:next page",
+     "logicalName": "Next page Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('button', { name: 'Next page', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Next page",
+     "nameSource": "aria-label",
+     "tag": "button",
+     "visible": true,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('button', { name: 'Next page', exact: true })",
+      "python": "get_by_role(\"button\", name=\"Next page\", exact=True)",
+      "args": {
+       "role": "button",
+       "name": "Next page",
+       "exact": true
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": true,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "text",
+       "js": "getByText('Next', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "dialog:dialog:add germplasm": {
+     "key": "dialog:dialog:add germplasm",
+     "logicalName": "Add Germplasm Dialog",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('dialog', { name: 'Add Germplasm', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "dialog",
+     "role": "dialog",
+     "name": "Add Germplasm",
+     "nameSource": "aria-labelledby",
+     "tag": "dialog",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('dialog', { name: 'Add Germplasm', exact: true })",
+      "python": "get_by_role(\"dialog\", name=\"Add Germplasm\", exact=True)",
+      "args": {
+       "role": "dialog",
+       "name": "Add Germplasm",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "css",
+       "js": "locator('#add-dialog')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "heading:heading:add germplasm": {
+     "key": "heading:heading:add germplasm",
+     "logicalName": "Add Germplasm Heading",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('heading', { name: 'Add Germplasm', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "heading",
+     "role": "heading",
+     "name": "Add Germplasm",
+     "nameSource": "content",
+     "tag": "h2",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('heading', { name: 'Add Germplasm', exact: true })",
+      "python": "get_by_role(\"heading\", name=\"Add Germplasm\", exact=True)",
+      "args": {
+       "role": "heading",
+       "name": "Add Germplasm",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "css",
+       "js": "locator('#add-title')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "form:form:add-form": {
+     "key": "form:form:add-form",
+     "logicalName": "Form",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "locator('#add-form')",
+       "strategy": "css",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "form",
+     "role": "form",
+     "name": "",
+     "tag": "form",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "css",
+      "tier": 4,
+      "js": "locator('#add-form')",
+      "python": "locator(\"#add-form\")",
+      "args": {
+       "css": "#add-form",
+       "via": "id"
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "live"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": []
+    },
+    "textbox:textbox:name": {
+     "key": "textbox:textbox:name",
+     "logicalName": "Name Textbox",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('textbox', { name: 'Name', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "textbox",
+     "role": "textbox",
+     "name": "Name",
+     "nameSource": "label",
+     "tag": "input",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('textbox', { name: 'Name', exact: true })",
+      "python": "get_by_role(\"textbox\", name=\"Name\", exact=True)",
+      "args": {
+       "role": "textbox",
+       "name": "Name",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "label",
+       "js": "getByLabel('Name', { exact: true })",
+       "confidence": "HIGH",
+       "estMatches": 1
+      },
+      {
+       "strategy": "css",
+       "js": "locator('#g-name')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "combobox:combobox:type": {
+     "key": "combobox:combobox:type",
+     "logicalName": "Type Combobox",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('combobox', { name: 'Type', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "combobox",
+     "role": "combobox",
+     "name": "Type",
+     "nameSource": "label",
+     "tag": "select",
+     "visible": false,
+     "enabled": true,
+     "options": [
+      "Inbred",
+      "Hybrid"
+     ],
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('combobox', { name: 'Type', exact: true })",
+      "python": "get_by_role(\"combobox\", name=\"Type\", exact=True)",
+      "args": {
+       "role": "combobox",
+       "name": "Type",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "label",
+       "js": "getByLabel('Type', { exact: true })",
+       "confidence": "HIGH",
+       "estMatches": 1
+      },
+      {
+       "strategy": "css",
+       "js": "locator('#g-type')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "button#data-testid=germplasm-save": {
+     "key": "button#data-testid=germplasm-save",
+     "logicalName": "Save Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByTestId('germplasm-save')",
+       "strategy": "testid",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Save",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": false,
+     "enabled": true,
+     "testIds": {
+      "data-testid": "germplasm-save"
+     },
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "testid",
+      "tier": 1,
+      "js": "getByTestId('germplasm-save')",
+      "python": "get_by_test_id(\"germplasm-save\")",
+      "args": {
+       "attribute": "data-testid",
+       "value": "germplasm-save"
+      },
+      "est_matches": 1,
+      "matches": 1,
+      "unique": true,
+      "visible": false,
+      "enabled": true,
+      "confidence": "HIGH",
+      "validation": "live"
+     },
+     "confidence": "HIGH",
+     "alternatives": [
+      {
+       "strategy": "role",
+       "js": "getByRole('button', { name: 'Save', exact: true })",
+       "confidence": "HIGH",
+       "estMatches": 1
+      },
+      {
+       "strategy": "text",
+       "js": "getByText('Save', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "button:button:cancel": {
+     "key": "button:button:cancel",
+     "logicalName": "Cancel Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('button', { name: 'Cancel', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Cancel",
+     "nameSource": "content",
+     "tag": "button",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('button', { name: 'Cancel', exact: true })",
+      "python": "get_by_role(\"button\", name=\"Cancel\", exact=True)",
+      "args": {
+       "role": "button",
+       "name": "Cancel",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "css",
+       "js": "locator('#dlg-cancel')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      },
+      {
+       "strategy": "text",
+       "js": "getByText('Cancel', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    },
+    "button:button:close dialog": {
+     "key": "button:button:close dialog",
+     "logicalName": "Close dialog Button",
+     "firstSeen": "2026-08-24T21:25:03",
+     "timesSeen": 2,
+     "locatorHistory": [
+      {
+       "js": "getByRole('button', { name: 'Close dialog', exact: true })",
+       "strategy": "role",
+       "firstSeen": "2026-08-24T21:25:03",
+       "lastSeen": "2026-08-24T21:25:05",
+       "timesSeen": 2
+      }
+     ],
+     "type": "button",
+     "role": "button",
+     "name": "Close dialog",
+     "nameSource": "aria-label",
+     "tag": "button",
+     "visible": false,
+     "enabled": true,
+     "lastSeen": "2026-08-24T21:25:05",
+     "locator": {
+      "strategy": "role",
+      "tier": 2,
+      "js": "getByRole('button', { name: 'Close dialog', exact: true })",
+      "python": "get_by_role(\"button\", name=\"Close dialog\", exact=True)",
+      "args": {
+       "role": "button",
+       "name": "Close dialog",
+       "exact": true
+      },
+      "est_matches": 1,
+      "visible": false,
+      "enabled": true,
+      "confidence": "MEDIUM",
+      "validation": "deferred-hidden"
+     },
+     "confidence": "MEDIUM",
+     "alternatives": [
+      {
+       "strategy": "css",
+       "js": "locator('#dlg-close')",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      },
+      {
+       "strategy": "text",
+       "js": "getByText('×', { exact: true })",
+       "confidence": "MEDIUM",
+       "estMatches": 1
+      }
+     ]
+    }
+   },
+   "environmentsSeen": [
+    "http://127.0.0.1:51778"
+   ],
+   "label": "Research Group ABC > Germplasms",
+   "route": "/app/research-group/:id",
+   "signals": {
+    "route": "/app/research-group/:id",
+    "activeTab": "Germplasms",
+    "dialogs": [],
+    "tabs": [
+     "Cultivars",
+     "Entities",
+     "Germplasms",
+     "Images",
+     "Inventory",
+     "Observations",
+     "Overview",
+     "Variables"
+    ],
+    "landmarkRoles": [
+     "grid",
+     "main",
+     "navigation",
+     "tablist",
+     "toolbar"
+    ]
+   },
+   "lastSeen": "2026-08-24T21:25:05"
+  }
+ },
+ "navigation": {
+  "home|link:Research Groups|research-groups": {
+   "from": "home",
+   "action": {
+    "type": "link",
+    "name": "Research Groups",
+    "role": "link",
+    "interaction": "click",
+    "trigger": "dom-mutation",
+    "locator": "getByTestId('nav-research-groups')",
+    "locatorSpec": {
+     "strategy": "testid",
+     "tier": 1,
+     "js": "getByTestId('nav-research-groups')",
+     "python": "get_by_test_id(\"nav-research-groups\")",
+     "args": {
+      "attribute": "data-testid",
+      "value": "nav-research-groups"
+     },
+     "est_matches": 1,
+     "matches": 1,
+     "unique": true,
+     "visible": true,
+     "enabled": true,
+     "confidence": "HIGH",
+     "validation": "live"
+    }
+   },
+   "to": "research-groups",
+   "firstSeen": "2026-08-24T21:25:00",
+   "timesSeen": 1,
+   "lastSeen": "2026-08-24T21:25:00"
+  },
+  "research-groups|link:Research Group ABC|research-group-overview": {
+   "from": "research-groups",
+   "action": {
+    "type": "link",
+    "name": "Research Group ABC",
+    "role": "link",
+    "interaction": "click",
+    "trigger": "dom-mutation",
+    "locator": "getByRole('link', { name: 'Research Group ABC', exact: true })",
+    "locatorSpec": {
+     "strategy": "role",
+     "tier": 2,
+     "js": "getByRole('link', { name: 'Research Group ABC', exact: true })",
+     "python": "get_by_role(\"link\", name=\"Research Group ABC\", exact=True)",
+     "args": {
+      "role": "link",
+      "name": "Research Group ABC",
+      "exact": true
+     },
+     "est_matches": 1,
+     "matches": 1,
+     "unique": true,
+     "visible": true,
+     "enabled": true,
+     "confidence": "HIGH",
+     "validation": "live"
+    }
+   },
+   "to": "research-group-overview",
+   "firstSeen": "2026-08-24T21:25:01",
+   "timesSeen": 1,
+   "lastSeen": "2026-08-24T21:25:01"
+  },
+  "research-group-overview|tab:Germplasms|research-group-germplasms": {
+   "from": "research-group-overview",
+   "action": {
+    "type": "tab",
+    "name": "Germplasms",
+    "role": "tab",
+    "interaction": "click",
+    "trigger": "dom-mutation",
+    "locator": "getByRole('tab', { name: 'Germplasms', exact: true })",
+    "locatorSpec": {
+     "strategy": "role",
+     "tier": 2,
+     "js": "getByRole('tab', { name: 'Germplasms', exact: true })",
+     "python": "get_by_role(\"tab\", name=\"Germplasms\", exact=True)",
+     "args": {
+      "role": "tab",
+      "name": "Germplasms",
+      "exact": true
+     },
+     "est_matches": 1,
+     "matches": 1,
+     "unique": true,
+     "visible": true,
+     "enabled": true,
+     "confidence": "HIGH",
+     "validation": "live"
+    }
+   },
+   "to": "research-group-germplasms",
+   "firstSeen": "2026-08-24T21:25:03",
+   "timesSeen": 1,
+   "lastSeen": "2026-08-24T21:25:03"
+  },
+  "research-group-germplasms|button:Add Germplasm|research-group-germplasms-dialog-add-germplasm": {
+   "from": "research-group-germplasms",
+   "action": {
+    "type": "button",
+    "name": "Add Germplasm",
+    "role": "button",
+    "interaction": "click",
+    "trigger": "dom-mutation",
+    "locator": "getByTestId('germplasm-add')",
+    "locatorSpec": {
+     "strategy": "testid",
+     "tier": 1,
+     "js": "getByTestId('germplasm-add')",
+     "python": "get_by_test_id(\"germplasm-add\")",
+     "args": {
+      "attribute": "data-testid",
+      "value": "germplasm-add"
+     },
+     "est_matches": 1,
+     "matches": 1,
+     "unique": true,
+     "visible": true,
+     "enabled": true,
+     "confidence": "HIGH",
+     "validation": "live"
+    }
+   },
+   "to": "research-group-germplasms-dialog-add-germplasm",
+   "firstSeen": "2026-08-24T21:25:04",
+   "timesSeen": 1,
+   "lastSeen": "2026-08-24T21:25:04"
+  },
+  "research-group-germplasms-dialog-add-germplasm|button:Close dialog|research-group-germplasms": {
+   "from": "research-group-germplasms-dialog-add-germplasm",
+   "action": {
+    "type": "button",
+    "name": "Close dialog",
+    "role": "button",
+    "interaction": "click",
+    "trigger": "dom-mutation",
+    "locator": "getByRole('button', { name: 'Close dialog', exact: true })",
+    "locatorSpec": {
+     "strategy": "role",
+     "tier": 2,
+     "js": "getByRole('button', { name: 'Close dialog', exact: true })",
+     "python": "get_by_role(\"button\", name=\"Close dialog\", exact=True)",
+     "args": {
+      "role": "button",
+      "name": "Close dialog",
+      "exact": true
+     },
+     "est_matches": 1,
+     "matches": 1,
+     "unique": true,
+     "visible": true,
+     "enabled": true,
+     "confidence": "HIGH",
+     "validation": "live"
+    }
+   },
+   "to": "research-group-germplasms",
+   "firstSeen": "2026-08-24T21:25:05",
+   "timesSeen": 1,
+   "lastSeen": "2026-08-24T21:25:05"
+  },
+  "research-group-germplasms|tab:Variables|research-group-variables": {
+   "from": "research-group-germplasms",
+   "action": {
+    "type": "tab",
+    "name": "Variables",
+    "role": "tab",
+    "interaction": "click",
+    "trigger": "dom-mutation",
+    "locator": "getByRole('tab', { name: 'Variables', exact: true })",
+    "locatorSpec": {
+     "strategy": "role",
+     "tier": 2,
+     "js": "getByRole('tab', { name: 'Variables', exact: true })",
+     "python": "get_by_role(\"tab\", name=\"Variables\", exact=True)",
+     "args": {
+      "role": "tab",
+      "name": "Variables",
+      "exact": true
+     },
+     "est_matches": 1,
+     "matches": 1,
+     "unique": true,
+     "visible": true,
+     "enabled": true,
+     "confidence": "HIGH",
+     "validation": "live"
+    }
+   },
+   "to": "research-group-variables",
+   "firstSeen": "2026-08-24T21:25:06",
+   "timesSeen": 1,
+   "lastSeen": "2026-08-24T21:25:06"
+  }
+ },
+ "_note": "Sample: one state (research-group-germplasms) out of a full map, produced by tests/mock_app."
+}

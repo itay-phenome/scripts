@@ -1,0 +1,16 @@
+# Secrets — NEVER commit
+sessions/
+*.session
+*.session.bin
+config/credentials*
+config/settings.json   # holds the URL + username of whoever ran it
+# Build artifacts
+build/
+dist/
+*.spec.bak
+__pycache__/
+*.pyc
+# Runtime output
+output/
+reports/
+logs/

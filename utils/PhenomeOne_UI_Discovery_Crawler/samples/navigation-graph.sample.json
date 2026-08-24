@@ -1,0 +1,274 @@
+{
+  "nodes": [
+    {
+      "id": "home",
+      "label": "Home",
+      "route": "/app/",
+      "fingerprint": "f6cf2816164e",
+      "elements": 26,
+      "timesSeen": 2,
+      "hasDialog": false,
+      "activeTab": ""
+    },
+    {
+      "id": "research-group-germplasms",
+      "label": "Research Group ABC > Germplasms",
+      "route": "/app/research-group/:id",
+      "fingerprint": "5f22ae4ef83f",
+      "elements": 44,
+      "timesSeen": 2,
+      "hasDialog": false,
+      "activeTab": "Germplasms"
+    },
+    {
+      "id": "research-group-germplasms-dialog-add-germplasm",
+      "label": "Research Group ABC > Germplasms [dialog: Add Germplasm]",
+      "route": "/app/research-group/:id",
+      "fingerprint": "f0b2e254f55f",
+      "elements": 44,
+      "timesSeen": 1,
+      "hasDialog": true,
+      "activeTab": "Germplasms"
+    },
+    {
+      "id": "research-group-overview",
+      "label": "Research Group ABC > Overview",
+      "route": "/app/research-group/:id",
+      "fingerprint": "627ef0820cb8",
+      "elements": 36,
+      "timesSeen": 1,
+      "hasDialog": false,
+      "activeTab": "Overview"
+    },
+    {
+      "id": "research-group-variables",
+      "label": "Research Group ABC > Variables",
+      "route": "/app/research-group/:id",
+      "fingerprint": "61177342a17f",
+      "elements": 40,
+      "timesSeen": 1,
+      "hasDialog": false,
+      "activeTab": "Variables"
+    },
+    {
+      "id": "research-groups",
+      "label": "Research Groups",
+      "route": "/app/research-groups",
+      "fingerprint": "39d54945703c",
+      "elements": 29,
+      "timesSeen": 1,
+      "hasDialog": false,
+      "activeTab": ""
+    }
+  ],
+  "edges": [
+    {
+      "from": "home",
+      "action": {
+        "type": "link",
+        "name": "Research Groups",
+        "role": "link",
+        "interaction": "click",
+        "trigger": "dom-mutation",
+        "locator": "getByTestId('nav-research-groups')",
+        "locatorSpec": {
+          "strategy": "testid",
+          "tier": 1,
+          "js": "getByTestId('nav-research-groups')",
+          "python": "get_by_test_id(\"nav-research-groups\")",
+          "args": {
+            "attribute": "data-testid",
+            "value": "nav-research-groups"
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-groups",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T21:25:00",
+      "lastSeen": "2026-08-24T21:25:00"
+    },
+    {
+      "from": "research-groups",
+      "action": {
+        "type": "link",
+        "name": "Research Group ABC",
+        "role": "link",
+        "interaction": "click",
+        "trigger": "dom-mutation",
+        "locator": "getByRole('link', { name: 'Research Group ABC', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('link', { name: 'Research Group ABC', exact: true })",
+          "python": "get_by_role(\"link\", name=\"Research Group ABC\", exact=True)",
+          "args": {
+            "role": "link",
+            "name": "Research Group ABC",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-overview",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T21:25:01",
+      "lastSeen": "2026-08-24T21:25:01"
+    },
+    {
+      "from": "research-group-overview",
+      "action": {
+        "type": "tab",
+        "name": "Germplasms",
+        "role": "tab",
+        "interaction": "click",
+        "trigger": "dom-mutation",
+        "locator": "getByRole('tab', { name: 'Germplasms', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('tab', { name: 'Germplasms', exact: true })",
+          "python": "get_by_role(\"tab\", name=\"Germplasms\", exact=True)",
+          "args": {
+            "role": "tab",
+            "name": "Germplasms",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-germplasms",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T21:25:03",
+      "lastSeen": "2026-08-24T21:25:03"
+    },
+    {
+      "from": "research-group-germplasms",
+      "action": {
+        "type": "button",
+        "name": "Add Germplasm",
+        "role": "button",
+        "interaction": "click",
+        "trigger": "dom-mutation",
+        "locator": "getByTestId('germplasm-add')",
+        "locatorSpec": {
+          "strategy": "testid",
+          "tier": 1,
+          "js": "getByTestId('germplasm-add')",
+          "python": "get_by_test_id(\"germplasm-add\")",
+          "args": {
+            "attribute": "data-testid",
+            "value": "germplasm-add"
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-germplasms-dialog-add-germplasm",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T21:25:04",
+      "lastSeen": "2026-08-24T21:25:04"
+    },
+    {
+      "from": "research-group-germplasms-dialog-add-germplasm",
+      "action": {
+        "type": "button",
+        "name": "Close dialog",
+        "role": "button",
+        "interaction": "click",
+        "trigger": "dom-mutation",
+        "locator": "getByRole('button', { name: 'Close dialog', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('button', { name: 'Close dialog', exact: true })",
+          "python": "get_by_role(\"button\", name=\"Close dialog\", exact=True)",
+          "args": {
+            "role": "button",
+            "name": "Close dialog",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-germplasms",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T21:25:05",
+      "lastSeen": "2026-08-24T21:25:05"
+    },
+    {
+      "from": "research-group-germplasms",
+      "action": {
+        "type": "tab",
+        "name": "Variables",
+        "role": "tab",
+        "interaction": "click",
+        "trigger": "dom-mutation",
+        "locator": "getByRole('tab', { name: 'Variables', exact: true })",
+        "locatorSpec": {
+          "strategy": "role",
+          "tier": 2,
+          "js": "getByRole('tab', { name: 'Variables', exact: true })",
+          "python": "get_by_role(\"tab\", name=\"Variables\", exact=True)",
+          "args": {
+            "role": "tab",
+            "name": "Variables",
+            "exact": true
+          },
+          "est_matches": 1,
+          "matches": 1,
+          "unique": true,
+          "visible": true,
+          "enabled": true,
+          "confidence": "HIGH",
+          "validation": "live"
+        }
+      },
+      "to": "research-group-variables",
+      "timesSeen": 1,
+      "firstSeen": "2026-08-24T21:25:06",
+      "lastSeen": "2026-08-24T21:25:06"
+    }
+  ],
+  "roots": [
+    "home"
+  ],
+  "tree": [
+    "home  (26 elements)",
+    "└── [Research Groups] -> research-groups  (29 elements)",
+    "    └── [Research Group ABC] -> research-group-overview  (36 elements)",
+    "        └── [Germplasms] -> research-group-germplasms  (44 elements)",
+    "            ├── [Add Germplasm] -> research-group-germplasms-dialog-add-germplasm  (44 elements)",
+    "            │   └── [Close dialog] -> research-group-germplasms  (44 elements)   (shown above)",
+    "            └── [Variables] -> research-group-variables  (40 elements)"
+  ]
+}
