@@ -17,6 +17,7 @@ from tkinter import messagebox, ttk
 from typing import Any
 
 from .. import paths
+from ..crawler.bfs import CrawlLimits
 from ..browser.controller import Engine
 from ..logging_setup import get, register_secret, setup
 from ..security.session_store import SessionStore
@@ -86,6 +87,9 @@ class App(tk.Tk):
         self.var_duration = tk.StringVar(value="00:00")
         self.var_workflow = tk.StringVar()
         self.var_crawl = tk.StringVar(value="")
+        # Conservative default: a first crawl of an unknown application should
+        # be small enough to read the summary before widening it.
+        self.var_crawl_actions = tk.StringVar(value="20")
         self.stats = {k: tk.StringVar(value="0") for k in
                       ("states", "elements", "paths", "high", "medium", "low")}
 
@@ -144,8 +148,15 @@ class App(tk.Tk):
         crawl_row.pack(fill="x", pady=(8, 0))
         self.b_crawl = ttk.Button(crawl_row, text="SAFE CRAWL", command=self.on_crawl)
         self.b_crawl.pack(side="left")
-        ttk.Label(crawl_row, text="explores read-only navigation only - never clicks "
-                                  "Save/Delete/Submit", foreground="#666").pack(side="left", padx=8)
+        # The budget has to be reachable from here. The GUI used to call op_crawl()
+        # with no limits, so it always ran the 250-action default - and the only
+        # way to try a small first crawl was the CLI, which needs its own login.
+        ttk.Label(crawl_row, text="max actions").pack(side="left", padx=(10, 3))
+        self.sp_crawl_actions = ttk.Spinbox(crawl_row, from_=1, to=2000, width=6,
+                                            textvariable=self.var_crawl_actions)
+        self.sp_crawl_actions.pack(side="left")
+        ttk.Label(crawl_row, text="read-only navigation only - never Save/Delete/Submit",
+                  foreground="#666").pack(side="left", padx=8)
         ttk.Label(crawl_row, textvariable=self.var_crawl, foreground="#0a6").pack(side="right")
 
         wf_row = ttk.Frame(disc)
@@ -305,8 +316,15 @@ class App(tk.Tk):
                 "recognise, never accepts a confirmation dialog, and never leaves this site.\n\n"
                 "Continue?"):
             return
+        try:
+            max_actions = max(1, min(2000, int(str(self.var_crawl_actions.get()).strip())))
+        except (TypeError, ValueError):
+            messagebox.showinfo(paths.APP_NAME, "Max actions must be a whole number.")
+            return
         eng = self._ensure_engine()
-        eng.submit(lambda: eng.op_crawl(), op="crawl")
+        limits = CrawlLimits(max_actions=max_actions)
+        self._append("INFO", f"Safe Crawl starting with a budget of {max_actions} action(s)")
+        eng.submit(lambda: eng.op_crawl(limits), op="crawl")
 
     def on_workflow(self) -> None:
         eng = self._ensure_engine()
