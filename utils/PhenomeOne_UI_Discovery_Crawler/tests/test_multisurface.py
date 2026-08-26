@@ -222,6 +222,50 @@ def main() -> int:
                   all({"id", "kind", "scope", "openedByAction"} <= set(s)
                       for s in result.surfaces), str(result.surfaces[:1]))
 
+            print("\n[7] the intended workflow: a human signs in, then it runs itself")
+            # This is what the tool is FOR (user, 2026-08-26): "i will login to the
+            # application and after the login the application will work
+            # autonomous". Automatic login is not required for that - and on the
+            # real app it is refused, because PhenomeOne uses a two-step form.
+            # What must hold is that nothing gates the autonomous crawl behind the
+            # tool's own `authenticated` flag.
+            app = server.url                       # the mock application root
+            engine.authenticated = False           # never set by us, as after a
+            engine.store.data["navigation"].clear()  # hand sign-in in the browser
+
+            async def human_signs_in() -> None:
+                await engine.page.goto(app, wait_until="domcontentloaded")
+                await engine.page.wait_for_selector("#pw", timeout=20000)
+                await engine.page.fill("#user", "tester@example.com")
+                await engine.page.fill("#pw", "SurfacePass!-secret")
+                await engine.page.get_by_test_id("login-submit").click()
+                await engine.page.wait_for_selector("[data-testid=nav-research-groups]",
+                                                    timeout=20000)
+
+            engine.call(lambda: human_signs_in(), timeout=120)
+            check("the human is signed in but the tool's auth flag is still False",
+                  not engine.authenticated, f"authenticated={engine.authenticated}")
+
+            crawler2 = SafeCrawler(engine, engine.store,
+                                   CrawlLimits(max_states=6, max_actions=8, max_depth=2,
+                                               time_budget_s=90.0))
+            engine.crawl_active = True
+            try:
+                r2 = engine.call(lambda: crawler2.run(engine.page.url), timeout=300)
+            finally:
+                engine.crawl_active = False
+            check("Safe Crawl ran without the tool ever authenticating itself",
+                  r2 is not None and not r2.aborted, r2.aborted if r2 else "no result")
+            check("and it explored autonomously", r2.states_visited >= 2 and r2.actions_clicked >= 2,
+                  f"{r2.states_visited} states, {r2.actions_clicked} clicks")
+            check("recording real application states",
+                  len(r2.new_states) >= 1 or r2.edges_new >= 1,
+                  f"new={r2.new_states} edges={r2.edges_new}")
+            check("with no destructive action taken",
+                  not [t for t in r2.timeline
+                       if str(t.get("action", "")).lower() in ("delete", "save", "submit")],
+                  str(r2.timeline[:3]))
+
             leaked = [str(p.relative_to(HOME)) for p in HOME.rglob("*")
                       if p.is_file() and b"localhost" in p.read_bytes()
                       and p.suffix == ".json" and "ui-map" in p.name]

@@ -9,8 +9,8 @@
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed) |
 | Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (555 MB, v1.4.0, git-ignored) — built in `C:\Users\itay-b\p1uid-build`, then copied. See §5 |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **634/634 passing** — 604 source (14 suites, 3 consecutive clean runs) + 30 packaged |
-| Blocked on | **A real autonomous crawl after login.** The two-step login form is not yet supported, so reaching the app still needs a manual sign-in; SCAN and TRAINING work without it |
+| Tests | **647/647 passing** — 617 source (14 suites, 3 consecutive clean runs) + 30 packaged |
+| Blocked on | **Nothing local.** The intended workflow - a human signs in, then the tool runs itself - is implemented and test-proven: SCAN, TRAINING and SAFE CRAWL are not gated on the tool's own auth flag. Next step is a real Safe Crawl on PhenomeOne after a manual sign-in |
 | First real run | 2026-08-24 against `eksdemo-helm.phenome-networks.com`: exposed 4 bugs, all fixed (see §2.7) |
 
 ---
@@ -429,10 +429,32 @@ Three findings worth keeping:
 link advertising that it leaves the application offers a crawler nothing, while
 an external surface the application produces itself is observed and handled.
 
-Deliberate limit: a child surface is explored **inline at discovery, then
-closed**. Re-reaching it later would mean re-opening the tab by replaying the
-parent action, and its state may not survive that; the edge is recorded either
-way.
+**Child surfaces are crawled, not glanced at.** `_crawl_surface` explores within
+a child context one level deep, anchored on its landing state: the first
+candidate is often a "Back" link, and without returning to the anchor every
+remaining candidate vanishes - which made depth inside a child depend on DOM
+order. Bounded by `per_surface_actions` (8) and by the global budgets. Three
+outcomes on a child are handled explicitly: it is a **sign-in gate** (refused
+before any scan, so no credential control ever enters the map), the application
+**closes it** underneath us (recorded, parent carries on), or it **navigates out
+of scope** (exploration stops there). Guards - native dialogs, downloads - are
+installed on the child too and handed back to the parent afterwards.
+
+Deliberate limit: a child surface is not queued for later BFS. Re-reaching it
+would mean re-opening the tab by replaying the parent action, and its state may
+not survive that; the edge is recorded either way.
+
+**The intended workflow is test-proven.** The user's expectation - "i will login
+to the application and after the login the application will work autonomous" -
+does not need automatic login at all. `op_crawl` is gated only on having an open
+page and no active training, and the GUI's SAFE CRAWL button is disabled only
+while training or crawling. `test_multisurface.py` §7 signs in as a human would,
+leaves `engine.authenticated` False, and asserts the crawl still explores.
+
+**Known gap, not fixed:** the query string is not part of the state fingerprint
+(`normalise_route` takes path + hash). Harmless for PhenomeOne, whose state lives
+in the hash, but `?tab=overview` and `?tab=admin` would collide in an application
+that routes by query. Changing it means touching fingerprint inputs again.
 
 Two test assertions had to change, both because they encoded removed rules, and
 both replaced with the stronger property rather than deleted:
@@ -463,7 +485,7 @@ Run everything three times from a clean state with:
 | `test_safety.py` | 105 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary |
 | `test_crawler.py` | 22 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_surfaces.py` | 45 | surface scope + the outcome decision table (no browser) |
-| `test_multisurface.py` | 22 | **autonomous crawling across tabs/windows**: menu with no fingerprint change, same-origin tab and popup explored, off-origin closed, parent crawl survives |
+| `test_multisurface.py` | 35 | **autonomous crawling across tabs/windows**: menu with no fingerprint change, same-origin tab and popup explored, off-origin closed, parent crawl survives |
 | `test_pipeline.py` | 50 | workflows, UI diff, codegen, JUnit, CI exit codes |
 | `test_recovery.py` | 23 | the live-environment failures above, incl. the **Manual Login double-press race** |
 | `test_hardgrid.py` | 31 | component-framework UI: portaled combobox, virtualised grid, volatile dialog titles |
@@ -474,7 +496,7 @@ Run everything three times from a clean state with:
 | `test_login_variants.py` | 13 | slow form, iframe IdP form, landing page, no form, **late-rendering username field** (appears / never appears) |
 | `test_gui_smoke.py` | 21 | real Tk window driving the real browser |
 | `test_packaged.py` | 30 | relocated frozen build in a stripped environment |
-| **Total** | **634** | 604 source + 30 packaged, all passing as of this update |
+| **Total** | **647** | 617 source + 30 packaged, all passing as of this update |
 
 `test_packaged.py` takes a path: `python tests/test_packaged.py <dist>/PhenomeOne-UI-Discovery`.
 It **moves** the folder (relocation test), so pass the current location.
