@@ -576,8 +576,27 @@ class SafeCrawler:
         """
         found: list[str] = []
         parent_page = self._page
+        installed = False
         try:
             self._page = surface.page
+            # The guards belong to whatever surface we are working on: a native
+            # dialog or a download raised on a child is exactly as dangerous as
+            # on the parent, and without this the child would have none.
+            self._install_guards(surface.page)
+            installed = True
+
+            # A child that is a sign-in gate is not explorable content. Recording
+            # it and moving on is the honest outcome - crawling a login form would
+            # be both useless and a good way to lock an account.
+            if await self._session_lost():
+                self.result.incidents.append({
+                    "kind": "surface-unauthenticated", "action": cand.label,
+                    "url": (surface.url or "")[:200]})
+                log.warning("The %s surface opened by %r is a sign-in gate, not "
+                            "application content; leaving it alone", surface.kind, cand.label)
+                self._skip("surface-unauthenticated")
+                return found
+
             res = await self._scan()
             if res is None:
                 self._skip("unscannable-surface")
@@ -603,9 +622,17 @@ class SafeCrawler:
                 self.result.new_states.append(res.state_id)
                 log.info("New state discovered on a %s surface: %s (%s)",
                          surface.kind, res.state_id, res.label)
+
+            # Now CRAWL it, not just look at it. A germplasm detail tab has its
+            # own tabs and controls; scanning the landing state and closing the
+            # tab would map the door and none of the rooms.
+            found += await self._crawl_surface(surface, res)
         except Exception as exc:
             log.warning("Could not explore the %s surface: %s", surface.kind, type(exc).__name__)
         finally:
+            if installed:
+                self._remove_guards()
+                self._install_guards(parent_page)     # hand the guards back
             self._page = parent_page
             try:
                 if not surface.page.is_closed():
@@ -615,6 +642,117 @@ class SafeCrawler:
             if self.registry is not None:
                 self.registry.forget(surface)
         return found
+
+    async def _crawl_surface(self, surface: Any, res: Any) -> list[str]:
+        """Explore within one child surface, one level deep.
+
+        Deliberately not a full BFS: a child context cannot be re-reached by
+        replaying from the start URL, so there is nothing to return *to* if we
+        wander. Each safe action on the child is clicked once, the resulting
+        state recorded, and exploration stops the moment the surface stops being
+        ours - closed by the application, navigated off-origin, or showing a
+        sign-in form.
+        """
+        found: list[str] = []
+        state_id = res.state_id
+        clicked = 0
+        for child_cand in self._candidates(res):
+            if clicked >= self.limits.per_surface_actions:
+                break
+            hit = self._budget_left()
+            if hit:
+                self.result.limit_hit = hit
+                break
+            if surface.page.is_closed():
+                # The application closed its own window mid-exploration. Not an
+                # error: record it, stop, and let the parent carry on.
+                self.result.incidents.append({"kind": "surface-closed-by-app",
+                                              "url": (surface.url or "")[:200]})
+                log.info("The %s surface closed itself; returning to the parent", surface.kind)
+                break
+
+            next_res = await self._click_on_surface(surface, state_id, child_cand)
+            clicked += 1
+            if next_res is None:
+                continue
+            if next_res.state_id != state_id:
+                surface.visited.add(next_res.state_id)
+                found.append(next_res.state_id)
+                # Explore from the state we actually landed on, so a two-step
+                # path inside the child is still reachable.
+                state_id = next_res.state_id
+                res = next_res
+        return found
+
+    async def _click_on_surface(self, surface: Any, state_id: str,
+                                cand: _Candidate) -> Any:
+        """One click on a child surface. No replay: there is nowhere to replay to.
+
+        Returns the scan of where it landed, or None if nothing usable happened.
+        """
+        before_dialogs = len(self._dialog_seen)
+        try:
+            handle = validator.build(cand.frame, cand.locator)
+            if await handle.count() != 1:
+                self._skip("vanished-before-click")
+                return None
+            await handle.first.click(timeout=self.limits.click_timeout_ms)
+            self.result.actions_clicked += 1
+        except Exception as exc:
+            self._skip("click-failed")
+            log.debug("Click failed on a surface: %s", type(exc).__name__)
+            return None
+
+        try:
+            await stability.wait_stable(surface.page, timeout_ms=self.limits.settle_timeout_ms)
+        except Exception:
+            pass
+        if surface.page.is_closed():
+            self.result.incidents.append({"kind": "surface-closed-by-app",
+                                          "action": cand.label})
+            log.info("%r closed the %s surface", cand.label, surface.kind)
+            return None
+
+        if len(self._dialog_seen) > before_dialogs:
+            self._skip("raised-native-dialog")
+            log.warning("%r raised a native dialog on a %s surface", cand.label, surface.kind)
+
+        # Still ours? A child that navigates away stops being explorable content.
+        scope = await surfaces.scope_of(surface.page, self.engine.base_url, self.extra_origins)
+        if scope != surfaces.IN_SCOPE:
+            self.result.incidents.append({"kind": "surface-left-scope", "action": cand.label,
+                                          "scope": scope})
+            log.info("%r took the %s surface out of scope (%s); stopping there",
+                     cand.label, surface.kind, scope)
+            return None
+        if await self._session_lost():
+            self.result.incidents.append({"kind": "surface-unauthenticated",
+                                          "action": cand.label})
+            return None
+
+        res = await self._scan()
+        if res is None:
+            self._skip("unscannable-surface")
+            return None
+        if res.state_id != state_id:
+            action = {
+                "type": cand.element.get("type") or "click",
+                "name": cand.label,
+                "role": cand.element.get("role") or "",
+                "interaction": "crawler-click",
+                "trigger": "safe-crawl",
+                "safety": cand.verdict.classification,
+                "locator": cand.locator.js,
+                "locatorSpec": cand.locator.to_json(),
+                "onSurface": {"kind": surface.kind, "openedBy": surface.opened_by_action},
+            }
+            if self.store.merge_edge(state_id, action, res.state_id):
+                self.result.edges_new += 1
+            if res.is_new_state:
+                self.result.new_states.append(res.state_id)
+                log.info("New state discovered inside a %s surface: %s (%s)",
+                         surface.kind, res.state_id, res.label)
+        return res
 
     async def _click(self, state_id: str, path: list[dict[str, Any]],
                      cand: _Candidate) -> str:
