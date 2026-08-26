@@ -84,14 +84,91 @@ def normalise_dialog_title(title: str) -> str:
     return " ".join(out)
 
 
+_PLACEHOLDER_PAIR_RE = re.compile(r"=(:(?:id|uuid|hash|token|name|date|time))?$")
+
+
+def _slug_segment(seg: str) -> str:
+    """Readable slug text for one route segment.
+
+    A normalised parameter carries no identity - `oid=:id` and `oname=:name` are
+    the same in every state that has them - so they are dropped from the human
+    id. Identity still comes from `digest`; this only decides readability.
+    """
+    if "=" in seg:
+        keep = [pair for pair in re.split(r"[&;]", seg)
+                if pair and not _PLACEHOLDER_PAIR_RE.search(pair)]
+        seg = "&".join(keep)
+    return slugify(seg.replace(":", ""))
+
+
 def _dialog_slug(normalised: str, max_len: int = 24) -> str:
     """Slug from the stable words only - a placeholder is not a name."""
     kept = [t for t in normalised.split() if not t.startswith(":")]
     return slugify(" ".join(kept), max_len)
 
 
+# Parameters whose VALUE names a record rather than describing structure. Their
+# values are business data and must not enter the map at all.
+_NAME_PARAM_RE = re.compile(r"(^|_)(o?name|label|title|caption)$", re.I)
+
+# Values that are record identifiers. Deliberately the same threshold as
+# `normalise_dialog_title`: a run of 4+ digits is an id, 1-3 digits is an enum.
+# `otype=23` (Study) and `otype=4` (Program) are *structure* and must survive -
+# they select genuinely different screens - while `oid=541306` must not.
+_PARAM_ID_PATTERNS = [
+    (re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I), ":uuid"),
+    (re.compile(r"^[0-9a-f]{24,}$", re.I), ":hash"),
+    (re.compile(r"^[0-9]{4,}$"), ":id"),                          # 541306
+    (re.compile(r"^[0-9]+([.~:_-][0-9]+)+$"), ":id"),             # 8.393426.541306, 541306~24
+    (re.compile(r"^[A-Za-z]{1,6}[-_][0-9]{2,}([-_][A-Za-z0-9]+)*$"), ":id"),   # INV-0001
+    (re.compile(r"^[A-Za-z]{1,6}[0-9]{4,}$"), ":id"),             # INV0001
+    (re.compile(r"^(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{28,}$"), ":token"),
+]
+
+
+def _normalise_param_value(key: str, value: str) -> str:
+    """One `key=value` pair from a query string or hash fragment."""
+    if not value:
+        return value
+    if _NAME_PARAM_RE.search(key):
+        return ":name"                      # a record name: never structural
+    for pat, token in _PARAM_ID_PATTERNS:
+        if pat.match(value):
+            return token
+    return value
+
+
+def _normalise_params(segment: str) -> str:
+    """Normalise `a=1&b=x` inside a path segment or hash fragment.
+
+    A single-page application routinely carries its whole location in one hash
+    fragment - `#v=1&r=m&p=8.393426.541306&oid=541306~24&otype=24&oname=List` -
+    so segment-level id matching never sees the ids: the entire fragment is one
+    segment. Without this, every record opened becomes its own UI state and the
+    record's *name* ends up inside the state id.
+    """
+    if "=" not in segment:
+        return segment
+    out = []
+    for pair in re.split(r"([&;])", segment):
+        if pair in ("&", ";") or not pair:
+            out.append(pair)
+            continue
+        if "=" in pair:
+            key, _, value = pair.partition("=")
+            out.append(f"{key}={_normalise_param_value(key, value)}")
+        else:
+            out.append(pair)
+    return "".join(out)
+
+
 def normalise_route(path: str, hash_frag: str = "") -> str:
-    """`/research-group/123/germplasms` -> `/research-group/:id/germplasms`."""
+    """`/research-group/123/germplasms` -> `/research-group/:id/germplasms`.
+
+    Query-style parameters inside a segment or hash are normalised too, so
+    `#...&oid=541306&otype=4&oname=Test` becomes `#...&oid=:id&otype=4&oname=:name`
+    - one state per screen, not one per record.
+    """
     combined = path or "/"
     frag = (hash_frag or "").lstrip("#")
     if frag and frag.startswith("/"):
@@ -108,6 +185,9 @@ def normalise_route(path: str, hash_frag: str = "") -> str:
             if pat.match(seg):
                 repl = token
                 break
+        else:
+            # Not an id as a whole; it may still carry key=value parameters.
+            repl = _normalise_params(seg)
         parts.append(repl)
     route = "/".join(parts) or "/"
     route = re.sub(r"/{2,}", "/", route)
@@ -156,7 +236,7 @@ def fingerprint(structure: dict[str, Any]) -> Fingerprint:
 
     # Human-readable identity. Route + tab + dialog, all structural.
     route_slug = "-".join(
-        p for p in (slugify(seg.replace(":", "")) for seg in route.split("/"))
+        p for p in (_slug_segment(seg) for seg in route.split("/"))
         if p and p not in _SLUG_STOP and p not in {"id", "uuid", "hash", "token"}
     )
     bits = [b for b in (route_slug, slugify(active_tab, 24)) if b]

@@ -91,3 +91,20 @@ async def signature(page: Any, frame: Any = None) -> str:
         return str(await target.evaluate("() => window.__p1uidCore.signature()"))
     except Exception:
         return ""
+
+
+async def visible_signature(page: Any, frame: Any = None) -> str:
+    """Which interactive controls are *visible*, for outcome detection.
+
+    `signature()` counts interactive nodes whether shown or not, so revealing an
+    already-present menu leaves it unchanged. The crawler needs to tell "the
+    click did nothing" from "a surface opened", and an opened dropdown moves no
+    state-fingerprint input either.
+    """
+    target = frame or page.main_frame
+    try:
+        if not await scanner.ensure_core(target):
+            return ""
+        return str(await target.evaluate("() => window.__p1uidCore.visibleSignature()"))
+    except Exception:
+        return ""

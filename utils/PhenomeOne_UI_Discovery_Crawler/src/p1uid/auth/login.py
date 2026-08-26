@@ -225,13 +225,15 @@ async def analyse_when_ready(frame: Any, settle_s: float = 10.0) -> tuple[LoginP
     started = time.monotonic()
     deadline = started + settle_s
     logged = False
+    timed_out = True            # False when the loop breaks for lack of anything pending
     while time.monotonic() < deadline:
         pending = [f for f in fields.get("inputs", [])
                    if not f.get("visible") and not f.get("disabled")
                    and f.get("type") not in ("password", "hidden")
                    and _score_username(f)[0] >= STRONG_USERNAME]
         if not pending:
-            break                       # nothing is on its way; the verdict is final
+            timed_out = False           # nothing is on its way; the verdict is final
+            break
         if not logged:
             log.info("A likely username field is present but not visible yet "
                      "(%s) - waiting up to %.0fs for the form to finish rendering",
@@ -246,8 +248,16 @@ async def analyse_when_ready(frame: Any, settle_s: float = 10.0) -> tuple[LoginP
                      time.monotonic() - started, plan.confidence)
             return plan, fields
     if logged:
-        log.warning("The username field never became visible within %.0fs - "
-                    "refusing automatic login (unchanged behaviour)", settle_s)
+        waited = time.monotonic() - started
+        if timed_out:
+            log.warning("The username field never became visible within %.0fs - "
+                        "refusing automatic login (unchanged behaviour)", settle_s)
+        else:
+            # Distinct outcome, and the one the real application produced: the
+            # form stopped being a login form while we were waiting - it was a
+            # transient render, or the app replaced it once the session resolved.
+            log.warning("The login form changed while settling (%.1fs in) and no longer "
+                        "offers a username field - refusing automatic login", waited)
     return plan, fields
 
 
@@ -415,25 +425,57 @@ APP_MARKERS_JS = r"""
   };
   const count = (sel) => Array.from(document.querySelectorAll(sel)).filter(vis).length;
   return {
-    landmarks: count('main,[role=main],nav,[role=navigation],[role=tablist]'),
+    landmarks: count('main,[role=main],nav,[role=navigation],[role=tablist],'
+                     + '[role=toolbar],[role=grid],[role=treegrid],[role=tree]'),
     controls: count('button,[role=button],a[href],[role=tab],[role=menuitem]'),
-    fields: count('input,select,textarea')
+    fields: count('input,select,textarea'),
+    // A visible password field means this is a gate, not the application.
+    passwords: count('input[type=password]'),
+    // Evidence of a rendered data surface, for applications that use no ARIA
+    // landmarks at all.
+    dataRows: count('table tr,[role=row]')
   };
 }
 """
 
 
-async def looks_authenticated(page: Any) -> bool:
+def _app_markers_say_app(info: dict[str, Any]) -> bool:
+    """Do these page markers describe the application rather than a gate?"""
+    if info.get("passwords", 0):
+        return False                    # a visible password field is a gate
+    if info.get("landmarks", 0) >= 1 and info.get("controls", 0) >= 5:
+        return True
+    # An application built from tables (PhenomeOne is Dojo) has NO ARIA
+    # landmarks at all - measured 2026-08-26: the fully rendered main frame
+    # reported none, so the landmark requirement alone could never be met and
+    # "already signed in" was unreachable. A rich control surface or a populated
+    # data grid is equally strong evidence, and a sign-in page has neither: it
+    # carries a couple of fields and one or two buttons.
+    return info.get("controls", 0) >= 8 or info.get("dataRows", 0) >= 5
+
+
+async def looks_authenticated(page: Any, wait_s: float = 0.0) -> bool:
     """Heuristic: does this page look like the application rather than a gate?
 
     Used only to distinguish "already signed in" from "the form has not rendered
     yet" - never to claim a successful sign-in on its own.
+
+    `wait_s` polls for that long before giving up. It defaults to 0 so callers
+    that need a fast, strict answer - Safe Crawl's session-loss check runs after
+    every click - are unchanged. Interactive sign-in passes a real budget,
+    because this application had painted no controls at all 38 s after load.
     """
-    try:
-        info = await page.evaluate(APP_MARKERS_JS)
-    except Exception:
-        return False
-    return bool(info.get("landmarks", 0) >= 1 and info.get("controls", 0) >= 5)
+    deadline = time.monotonic() + max(0.0, wait_s)
+    while True:
+        try:
+            info = await page.evaluate(APP_MARKERS_JS)
+        except Exception:
+            info = {}
+        if _app_markers_say_app(info):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        await asyncio.sleep(0.4)
 
 
 _ENTRY_NAME = re.compile(r"^\s*(log ?in|sign ?in|log ?on|sign ?on)\s*$", re.I)

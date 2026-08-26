@@ -12,7 +12,8 @@ sys.path.insert(0, str(ROOT / "src"))
 os.environ["P1UID_HOME"] = tempfile.mkdtemp(prefix="p1uid-unit-")
 
 from p1uid import logging_setup, paths                                  # noqa: E402
-from p1uid.auth.login import analyse, describe_fields                   # noqa: E402
+from p1uid.auth.login import (analyse, describe_fields,                  # noqa: E402
+                              _app_markers_say_app as app_markers)
 from p1uid.locator.generator import candidates, suggest_test_id, apply_validation  # noqa: E402
 from p1uid.navigation import graph as navgraph                          # noqa: E402
 from p1uid.reporting import html_report                                 # noqa: E402
@@ -135,6 +136,107 @@ def test_dialog_title_normalisation() -> None:
     check("two stacked dialogs differ from one",
           fingerprint(struct(path="/app/", dialogs=["Edit INV-0001", "Edit INV-0002"])).digest
           != fingerprint(struct(path="/app/", dialogs=["Edit INV-0001"])).digest)
+
+
+def test_spa_hash_route_normalisation() -> None:
+    """Real PhenomeOne routes: one state per screen, not per record.
+
+    Measured on 2026-08-26 against eksdemo-helm. The application carries its
+    whole location in one hash fragment, so segment-level id matching never saw
+    the ids: every record opened minted a new state, and the record's *name*
+    ended up inside the state id (`...otype-4-oname-test`).
+
+    The structural half must survive: `otype` selects the entity type, so
+    otype=4 (Program) and otype=23 (Study) are genuinely different screens.
+    """
+    print("SPA hash route normalisation")
+    HOME = "#v=1&r=m&p=&oid=m&otype=-1&oname=Mine&t=Overview"
+    PROG_A = "#v=1&r=m&p=8.393426&oid=393426&otype=4&oname=Test"
+    PROG_B = "#v=1&r=m&p=8.393426&oid=999111&otype=4&oname=Other Program"
+    TRIAL_LIST = "#v=1&r=m&p=8.393426.541306&oid=541306~24&otype=24&oname=List"
+    STUDY = "#v=1&r=m&p=8.393426.777888&oid=777888~23&otype=23&oname=Yield Study"
+    STUDY_TAB = STUDY + "&t=Germplasms"
+
+    def fp(h):
+        return fingerprint(struct(path="/", hash=h, landmarks=["table"], title="Phenome"))
+
+    check("record id is normalised out of the hash",
+          normalise_route("/", PROG_A) == "/#v=1&r=m&p=:id&oid=:id&otype=4&oname=:name",
+          normalise_route("/", PROG_A))
+    check("a dotted id path is normalised", ":id" in normalise_route("/", TRIAL_LIST)
+          and "8.393426" not in normalise_route("/", TRIAL_LIST))
+    check("a tilde-suffixed id is normalised", "541306" not in normalise_route("/", TRIAL_LIST))
+
+    # --- fragmentation: two records, same screen -> ONE state ---------------
+    check("two Programs collapse to one state", fp(PROG_A).digest == fp(PROG_B).digest,
+          f"{fp(PROG_A).digest} vs {fp(PROG_B).digest}")
+    check("and to one state id", fp(PROG_A).slug == fp(PROG_B).slug == "v-1-r-m-otype-4",
+          f"{fp(PROG_A).slug} / {fp(PROG_B).slug}")
+
+    # --- structure survives -------------------------------------------------
+    check("otype distinguishes Program from Study", fp(PROG_A).digest != fp(STUDY).digest)
+    check("otype distinguishes Trial List from Study", fp(TRIAL_LIST).digest != fp(STUDY).digest)
+    check("the tab parameter still creates a state",
+          fp(STUDY).digest != fp(STUDY_TAB).digest)
+    check("home is its own state",
+          fp(HOME).digest not in {fp(PROG_A).digest, fp(STUDY).digest})
+    check("otype survives in the readable id", fp(STUDY).slug == "v-1-r-m-otype-23",
+          fp(STUDY).slug)
+    check("the tab survives in the readable id",
+          fp(STUDY_TAB).slug == "v-1-r-m-otype-23-t-germplasms", fp(STUDY_TAB).slug)
+
+    # --- no business data anywhere in the map -------------------------------
+    for label, h in (("Test", PROG_A), ("Other Program", PROG_B),
+                     ("Yield Study", STUDY), ("List", TRIAL_LIST), ("Mine", HOME)):
+        f = fp(h)
+        blob = (f.slug + " " + f.route + " " + json.dumps(f.signals)).lower()
+        check(f"record name {label!r} never reaches the map",
+              label.split()[0].lower() not in blob or label.lower() == "list",
+              blob[:90])
+
+    # --- untouched: plain paths and short enums -----------------------------
+    check("plain path routes are unchanged",
+          normalise_route("/research-group/123/germplasms") == "/research-group/:id/germplasms")
+    # Nothing here is an id: `sort=name` is matched on the KEY, not the value,
+    # and `page=3` is a 1-digit enum. The whole query must survive untouched.
+    check("a query with no ids is left alone",
+          normalise_route("/app", "#tab=overview&sort=name&page=3")
+          == "/app/#tab=overview&sort=name&page=3",
+          normalise_route("/app", "#tab=overview&sort=name&page=3"))
+    check("short numeric enums survive",
+          normalise_route("/app", "#otype=24&v=1") == "/app/#otype=24&v=1",
+          normalise_route("/app", "#otype=24&v=1"))
+    check("normalisation is idempotent",
+          normalise_route("/", PROG_A) == normalise_route(normalise_route("/", PROG_A)))
+
+
+def test_app_marker_heuristic() -> None:
+    """"Is this the application or a gate?" for an app with no ARIA landmarks.
+
+    Measured 2026-08-26: PhenomeOne's fully rendered main frame reported ZERO
+    landmarks (`main`/`nav`/`tablist`), so the old landmark requirement could
+    never be satisfied and "already signed in" was unreachable - Manual Login
+    reported "no sign-in form detected" while the application was on screen.
+    """
+    print("app-vs-gate markers")
+
+    def m(landmarks=0, controls=0, fields=0, passwords=0, dataRows=0):
+        return {"landmarks": landmarks, "controls": controls, "fields": fields,
+                "passwords": passwords, "dataRows": dataRows}
+
+    check("a sign-in page is not the app", not app_markers(m(controls=1, fields=2, passwords=1)))
+    check("a two-step sign-in page (password hidden) is not the app",
+          not app_markers(m(controls=1, fields=2)))
+    check("an unpainted shell is not the app", not app_markers(m(fields=1)))
+    check("a rendered landmark-free app IS the app",
+          app_markers(m(controls=41, dataRows=170)))
+    check("a populated grid alone IS the app", app_markers(m(controls=2, dataRows=40)))
+    check("a classic app with landmarks IS the app", app_markers(m(landmarks=2, controls=9)))
+    # The safety-critical case: a visible password field wins over any amount of
+    # app-looking content, so Safe Crawl still detects a lost session.
+    check("a visible password field always means NOT authenticated",
+          not app_markers(m(landmarks=2, controls=12, dataRows=90, passwords=1)))
+    check("empty markers are not the app", not app_markers({}))
 
 
 def test_login_diagnostics() -> None:
@@ -327,7 +429,8 @@ def test_nav_and_report() -> None:
 
 
 if __name__ == "__main__":
-    for fn in (test_routes, test_fingerprint, test_dialog_title_normalisation, test_login_diagnostics,
+    for fn in (test_routes, test_fingerprint, test_dialog_title_normalisation, test_spa_hash_route_normalisation,
+               test_app_marker_heuristic, test_login_diagnostics,
                test_locators, test_store, test_redaction,
                test_login_analysis, test_nav_and_report):
         fn()

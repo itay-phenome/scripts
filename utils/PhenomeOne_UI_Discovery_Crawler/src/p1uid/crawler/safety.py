@@ -62,11 +62,27 @@ FLAG_AUTH = "leaves-session"
 # Flags that veto automatic clicking no matter how the action is classified.
 BLOCKING_FLAGS = frozenset({
     FLAG_DOWNLOAD, FLAG_MAILTO, FLAG_JAVASCRIPT, FLAG_BLOB, FLAG_DATA_URL,
-    FLAG_EXTERNAL_SCHEME, FLAG_CROSS_ORIGIN, FLAG_NEW_TAB, FLAG_FORM_SUBMIT,
+    FLAG_EXTERNAL_SCHEME, FLAG_FORM_SUBMIT,
     FLAG_FORM_RESET, FLAG_POST, FLAG_DANGEROUS_VERB, FLAG_DANGEROUS_QUERY,
     FLAG_HIDDEN, FLAG_DISABLED,
     FLAG_AUTH,
 })
+
+# Recorded, but NOT blocking. `new-tab` describes where a control *might* lead,
+# and refusing it before the click made whole regions of an application
+# unreachable by construction: PhenomeOne opens a germplasm detail page in a new
+# tab on its own origin, and `new-tab` meant that link was never clicked at all.
+#
+# What the click did is decided from the observed result instead (see
+# `crawler/outcomes.py`): the new context is classified by its URL and explored
+# only if it is the application, otherwise it is closed and the action poisoned.
+#
+# `cross-origin` is deliberately NOT here. It stays DANGEROUS via the URL-level
+# rule below, because a link that advertises it leaves the application offers
+# nothing to a crawler mapping that application - while an external surface the
+# application produces by itself (a scripted `window.open`, a redirect) is still
+# observed and handled, since those carry no such attribute to judge in advance.
+OBSERVE_NOT_BLOCK = frozenset({FLAG_NEW_TAB})
 
 ALLOWED_URL_SCHEMES = frozenset({"http", "https"})
 
@@ -89,6 +105,11 @@ _DANGEROUS_WORDS = [
     "deploy", "migrate", "run", "start", "stop", "restart", "kill", "abort",
     "pay", "buy", "order", "checkout", "subscribe", "unsubscribe", "renew",
     "generate", "recalculate", "recompute", "process", "finalize", "finalise",
+    # Observed on real PhenomeOne 2026-08-26: these mutate and were UNKNOWN,
+    # i.e. safe only by accident. "Calculate variables" writes computed values,
+    # "Define germplasm columns" changes the schema, "Distribute lots" moves
+    # inventory between plots.
+    "calculate", "define", "distribute",
     "lock", "unlock", "enable", "activate", "create", "add", "new", "update",
     "edit", "modify", "change", "set", "clear", "empty", "flush", "reindex",
     "validate", "verify", "notify", "alert", "escalate", "close ticket",
@@ -106,8 +127,39 @@ _NAV_WORDS = [
     "more", "less", "next", "previous", "prev", "first", "last", "back",
     "page", "go to", "browse", "overview", "summary", "list", "read",
 ]
+# Application vocabulary: entity names that title a *view* rather than an action.
+#
+# The generic verbs above cannot cover domain nouns, so an application whose
+# navigation is named after its own entities reads as UNKNOWN throughout and the
+# crawler cannot move. Measured against the real PhenomeOne label set on
+# 2026-08-26: only 3 of 54 documented labels were auto-clickable, and every tab
+# and sidebar view was UNKNOWN.
+#
+# Provenance: the documented PhenomeOne navigation vocabulary - global tabs,
+# Trial sidebar children, hamburger modules, record-detail tabs - cross-checked
+# against the states the real run actually produced.
+#
+# A destructive verb always wins, because dangerous matching runs first: "Delete
+# columns", "Upload lots - List" and "Add studies" stay DANGEROUS even though
+# they contain a navigation noun. These words only decide the case where nothing
+# destructive is present.
+_APP_NAV_WORDS = [
+    # global tabs: Research Group / Program / Study
+    "germplasms", "variables", "observations", "cultivars", "images",
+    "inventory", "entities", "plots", "plants", "selections", "crosses",
+    # Trial sidebar children (List and Overview are already generic nav words)
+    "map",
+    # hamburger menu modules
+    "organization", "varieties", "locales", "forms", "insights", "phenogene",
+    "image gallery", "home", "activities",
+    # record-detail tabs
+    "pedigree tree", "attributes",
+    # the Actions menu opener: revealing a menu commits nothing, and every
+    # item inside it is classified separately (Delete stays DANGEROUS).
+    "actions",
+]
 _NAV_RE = re.compile(r"(?<![a-z])(" + "|".join(
-    re.escape(w).replace(r"\ ", r"\s*") for w in _NAV_WORDS) + r")(?![a-z])", re.I)
+    re.escape(w).replace(r"\ ", r"\s*") for w in _NAV_WORDS + _APP_NAV_WORDS) + r")(?![a-z])", re.I)
 
 # Words that merely dismiss a transient surface. Harmless in isolation, but only
 # ever CONDITIONAL - "Close account" must not slip through as "Close".

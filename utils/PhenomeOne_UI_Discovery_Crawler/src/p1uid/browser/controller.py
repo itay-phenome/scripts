@@ -236,9 +236,12 @@ class Engine:
 
     def _on_new_page(self, page: Any) -> None:
         if self.crawl_active:
-            # During an autonomous crawl a popup is an incident, not a place to
-            # go: the crawler's own handler closes it. Never retarget here.
-            self.emit(type="log-info", msg="Popup appeared during the crawl; it will be closed")
+            # The crawler owns new browsing contexts during a crawl: it decides
+            # from the URL whether each one is part of the application, explores
+            # it if so, and disposes of it if not. Retargeting the engine's
+            # active page here would move the ground under it mid-action.
+            self.emit(type="log-info",
+                      msg="A new browsing context appeared; the crawler will classify it")
             return
         # A popup / new tab becomes the active page for observation.
         self.page = page
@@ -369,7 +372,11 @@ class Engine:
             log.info("A newer Manual Login attempt superseded this wait for the form")
             return
         if frame is None:
-            if await auth_login.looks_authenticated(self.page):
+            # No form turned up. Give the application real time to paint before
+            # concluding it is not there: PhenomeOne had rendered no controls at
+            # all 38 s after load, so a single look said "not the app" about an
+            # application that was merely slow.
+            if await auth_login.looks_authenticated(self.page, wait_s=15.0):
                 self.authenticated = True
                 log.info("No sign-in form appeared and the application is rendering - "
                          "treating this session as already authenticated")

@@ -194,12 +194,27 @@ def main() -> int:
             check("no form was submitted",
                   not [x for x in led["bad"] if str(x).startswith("submit:")], str(led["bad"]))
 
-            popped = [i for i in cs["incidents"] if i["kind"] == "popup-closed"]
+            # This popup opens `outer_frame.html` - SAME ORIGIN, so it is part of
+            # the application and is now explored and then closed, rather than
+            # closed on sight. The old assertion required a `popup-closed`
+            # incident, which encoded the fixed rule that has been removed.
+            #
+            # The safety property is unchanged and is what is asserted here: a
+            # popup never survives the crawl and never causes a side effect
+            # (checked above), whether it was explored or disposed of.
+            disposed = [i for i in cs["incidents"]
+                        if str(i.get("kind", "")).startswith("surface-")]
             if "popup-opened" in led["obs"]:
-                check("a popup that did open was closed by the crawler", bool(popped),
-                      str(cs["incidents"]))
+                check("a popup that did open was either explored or disposed of",
+                      cs.get("surfacesOpened", 0) >= 1 or bool(disposed),
+                      f"surfacesOpened={cs.get('surfacesOpened')} incidents={cs['incidents']}")
+                check("and no popup was left open",
+                      all(s.get("closed") for s in cs.get("surfaces", [])
+                          if s.get("kind") in ("popup", "tab")),
+                      str(cs.get("surfaces")))
             else:
                 check("no popup was opened at all", True)
+                check("and no surface was left open", True)
             check("no download file was written",
                   not list(HOME.rglob("statement.csv")) and not list(HOME.rglob("*.crdownload")),
                   str([str(p) for p in HOME.rglob('statement*')]))

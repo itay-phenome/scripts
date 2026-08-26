@@ -416,6 +416,26 @@ function gridMeta(el) {
   return { columns: cols, rowCount: rows };
 }
 
+// A <table> used purely for layout, nested inside a table we are already
+// recording. Older enterprise UIs (PhenomeOne is Dojo) nest tables many levels
+// deep for layout: the real run on 2026-08-26 produced 222 unnamed nested
+// tables out of 583 elements - 38% of the map - every one LOW confidence with a
+// `getByRole('table').nth(11)` locator no test can use.
+//
+// This only ever skips a table DOMINATED by another table, so the outermost
+// grid always survives; and anything carrying a name, caption, test id or a
+// non-table role (a real `role=grid`) is kept regardless of nesting.
+function isLayoutTable(el) {
+  if (el.getAttribute('aria-label') || el.getAttribute('aria-labelledby')) return false;
+  if (el.getAttribute('title')) return false;
+  const role = el.getAttribute('role');
+  if (role && role !== 'table') return false;
+  for (const a of TESTID_ATTRS) { if (el.getAttribute(a)) return false; }
+  try { if (el.querySelector(':scope > caption')) return false; } catch (e) { }
+  const parent = el.parentElement;
+  return !!(parent && parent.closest('table,[role="grid"],[role="treegrid"],[role="table"]'));
+}
+
 // ------------------------------------------------------------ harvest
 function harvest(rootDoc, limit) {
   const els = [];
@@ -431,6 +451,7 @@ function harvest(rootDoc, limit) {
       const tag = el.tagName;
       if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'LINK' || tag === 'META' || tag === 'HEAD') continue;
       try { if (!el.matches(SEL)) continue; } catch (e) { continue; }
+      if (tag === 'TABLE' && isLayoutTable(el)) continue;
       els.push(el);
       if (els.length >= limit) return { els: els, scanned: scanned };
     }
@@ -622,6 +643,28 @@ function domSignature() {
   return s;
 }
 
+// Which interactive controls are actually VISIBLE right now.
+//
+// `domSignature` counts interactive nodes whether or not they are shown, so
+// revealing an already-present menu does not move it - and the crawler read
+// that as "the click did nothing" and pruned the control. An opened dropdown is
+// not a route, a tab, a dialog or a landmark either, so no state fingerprint
+// input moves. This is the signal that separates "nothing happened" from "a
+// surface opened", and it is deliberately separate from `domSignature` so the
+// stability wait keeps its exact, well-tested sensitivity.
+function visibleSignature() {
+  const sel = 'button,a[href],[role="button"],[role="tab"],[role="menuitem"],' +
+              '[role="option"],[role="menu"],[role="listbox"],input,select,textarea';
+  let n = 0, surfaces = 0;
+  for (const el of document.querySelectorAll(sel)) {
+    if (!isVisible(el)) continue;
+    n++;
+    const role = el.getAttribute('role');
+    if (role === 'menu' || role === 'listbox') surfaces++;
+  }
+  return 'v=' + n + '|s=' + surfaces;
+}
+
 function checkState(reason) {
   const sig = domSignature();
   if (sig === state.sig) return;
@@ -788,6 +831,7 @@ window.__p1uidCore = {
   collect: collect,
   waitStable: waitStable,
   signature: function () { return domSignature(); },
+  visibleSignature: function () { return visibleSignature(); },
   startObserving: function () {
     installObservers();
     state.observing = true;

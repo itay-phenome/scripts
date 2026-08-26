@@ -30,8 +30,10 @@ for _s in (sys.stdout, sys.stderr):
 SUITES = [
     "test_units.py",
     "test_safety.py",
+    "test_surfaces.py",
     "test_artifacts.py",
     "test_crawler.py",
+    "test_multisurface.py",
     "test_redteam.py",
     "test_pipeline.py",
     "test_recovery.py",
@@ -74,6 +76,16 @@ def main() -> int:
     if "--runs" in sys.argv:
         runs = int(sys.argv[sys.argv.index("--runs") + 1])
     debug = "--debug" in sys.argv
+    # `--only a.py,b.py` runs a subset. The whole suite now takes ~10 minutes,
+    # which can exceed a caller's timeout, so it must be splittable without
+    # hand-running each file and losing the flakiness summary.
+    if "--only" in sys.argv:
+        wanted = [s.strip() for s in sys.argv[sys.argv.index("--only") + 1].split(",") if s.strip()]
+        unknown = [w for w in wanted if w not in SUITES]
+        if unknown:
+            print(f"unknown suite(s): {', '.join(unknown)}")
+            return 2
+        SUITES[:] = wanted
 
     history: dict[str, list[tuple[bool, int, int]]] = {s: [] for s in SUITES}
     durations: dict[str, list[float]] = {s: [] for s in SUITES}

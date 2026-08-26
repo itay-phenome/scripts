@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PhenomeOne (child surface)</title>
+<style>
+ body{font:14px/1.6 Segoe UI,sans-serif;margin:0;padding:14px 18px;color:#222}
+ h1{font-size:18px;margin:0 0 8px}
+ table{border-collapse:collapse;margin-top:8px}
+ th,td{border:1px solid #ddd;padding:5px 9px;text-align:left}
+ th{background:#f2f5f4}
+</style>
+
+<!--
+  A child surface: whatever opened it - a target=_blank link, window.open(), or
+  ordinary navigation - it carries real application content, so it must become
+  part of the graph rather than being closed on sight.
+
+  Served on both 127.0.0.1 and localhost. Which origin it is loaded from is what
+  decides whether the crawler treats it as the application or as somebody
+  else's site, so the SAME file proves both branches.
+-->
+
+<h1 id="head">Germplasm detail</h1>
+<main aria-label="Germplasm detail">
+  <table aria-label="Attributes">
+    <tr><th>Name</th><td>INV-0001</td></tr>
+    <tr><th>Type</th><td>Inbred</td></tr>
+    <tr><th>Created</th><td>2025-02-11</td></tr>
+  </table>
+  <p><a href="surfaces.html" data-testid="child-back">Back to surfaces</a></p>
+  <button data-testid="child-only">Child-only control</button>
+</main>
+
+<script>
+const kind = new URLSearchParams(location.search).get("kind") || "detail";
+document.getElementById("head").textContent = "Germplasm detail (" + kind + ")";
+document.title = "PhenomeOne child: " + kind;
+</script>

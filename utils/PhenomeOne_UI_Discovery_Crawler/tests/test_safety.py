@@ -164,9 +164,24 @@ def test_urls() -> None:
               v.classification == DANGEROUS and flag in v.flags and not v.auto_clickable,
               f"{v.classification} {v.flags}")
 
+    # target=_blank is OBSERVED, not pre-refused. Refusing it before the click
+    # made every application surface that opens in a tab unreachable - on real
+    # PhenomeOne, the germplasm detail page. The flag is still recorded so the
+    # outcome layer knows to expect a new context; what the click actually did
+    # is judged from the context's URL (see crawler/outcomes.py).
     v = classify(link("/app/help", name="Help", target="_blank"), origin="http://127.0.0.1:1")
-    check("target=_blank is flagged and never auto-clicked",
-          safety.FLAG_NEW_TAB in v.flags and not v.auto_clickable, f"{v.classification} {v.flags}")
+    check("a same-origin target=_blank link is flagged AND clickable",
+          safety.FLAG_NEW_TAB in v.flags and v.auto_clickable
+          and v.classification == SAFE_NAVIGATION, f"{v.classification} {v.flags}")
+    # The safety half must not move: a new tab is no excuse.
+    v = classify(link("/app/delete-record", name="Delete record", target="_blank"),
+                 origin="http://127.0.0.1:1")
+    check("a destructive target=_blank link is still refused",
+          v.classification == DANGEROUS and not v.auto_clickable, f"{v.classification} {v.flags}")
+    v = classify(link("http://elsewhere.test/docs", name="Docs", target="_blank"),
+                 origin="http://127.0.0.1:1")
+    check("a cross-origin target=_blank link is still refused",
+          v.classification == DANGEROUS and not v.auto_clickable, f"{v.classification} {v.flags}")
 
     v = classify(link("/app/research-groups", name="Research Groups"), origin="http://127.0.0.1:1")
     check("plain same-origin link is SAFE_NAVIGATION and auto-clickable",

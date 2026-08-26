@@ -100,6 +100,36 @@ def main() -> int:
                 check("its options are NOT captured by discovery (documented gap)",
                       not combo_el.get("options"), str(combo_el.get("options")))
 
+            print("\n[1b] nested layout tables are not recorded as elements")
+            # Real PhenomeOne: 222 of 583 elements were unnamed nested tables,
+            # 38% of the map, each with a getByRole('table').nth(N) locator.
+            in_dom = engine.call(lambda: engine.page.evaluate(
+                "() => document.querySelectorAll('table').length"), timeout=60)
+            tables = [(el, loc) for _f, el, loc in res.rows if el.get("tag") == "table"]
+            named = [el.get("name") for el, _l in tables]
+            testids = [el.get("attrs", {}).get("data-testid") for el, _l in tables]
+            print(f"    {in_dom} tables in the DOM, {len(tables)} recorded: names={named}")
+            check("far fewer tables are recorded than exist in the DOM",
+                  in_dom >= 6 and len(tables) < in_dom, f"{len(tables)} of {in_dom}")
+            check("the outermost table is still recorded (the data grid is never lost)",
+                  any(el.get("attrs", {}).get("id") == "lt-outer" for el, _l in tables),
+                  str([el.get("attrs", {}).get("id") for el, _l in tables]))
+            check("a nested table with an accessible name survives",
+                  "Trait summary" in named, str(named))
+            check("a nested table with a test id survives",
+                  "lt-tagged" in testids, str(testids))
+            # Anonymous = no accessible name AND no test id. The outermost table
+            # is allowed to be anonymous; a nested one is not.
+            anonymous_nested = [el.get("attrs", {}) for el, _l in tables
+                                if not (el.get("name") or "").strip()
+                                and not el.get("attrs", {}).get("data-testid")
+                                and el.get("attrs", {}).get("id") != "lt-outer"]
+            check("no anonymous nested table is recorded", not anonymous_nested,
+                  str(anonymous_nested))
+            check("structural nth() table locators are gone",
+                  not [loc for _el, loc in tables if ".nth(" in (loc.js or "")],
+                  str([loc.js for _el, loc in tables]))
+
             print("\n[2] the virtualisation trap is real")
             dom_rows = engine.call(lambda: engine.page.evaluate(
                 "() => document.querySelectorAll('[role=row]').length"), timeout=60)

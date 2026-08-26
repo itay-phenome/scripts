@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PhenomeOne (surfaces)</title>
+<style>
+ body{font:14px/1.6 Segoe UI,sans-serif;margin:0;padding:14px 18px;color:#222}
+ h1{font-size:19px;margin:0 0 4px}
+ section{border:1px solid #ddd;border-radius:5px;padding:10px 12px;margin:10px 0;max-width:760px}
+ h2{font-size:14px;margin:0 0 6px;color:#345}
+ .muted{color:#666;font-size:12px}
+ button,a{font:inherit}
+ a{margin-right:10px}
+ /* A menu: not a route, not a tab, not a dialog, not a landmark role. Opening it
+    moves NO fingerprint input, which is the whole point of this construct. */
+ [role=menu]{list-style:none;margin:6px 0 0;padding:4px 0;border:1px solid #999;
+             background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15);width:210px}
+ [role=menuitem]{padding:5px 12px;cursor:pointer}
+ [role=menuitem]:hover{background:#eef5ff}
+ .hidden{display:none}
+</style>
+
+<!--
+  Every construct the crawler must react to by OBSERVING, not by rule. The old
+  crawler closed popups on sight, refused new tabs during a crawl, and blocked
+  target=_blank before the click - so sections 2-4 were unreachable and section 1
+  was pruned as inert.
+-->
+
+<h1>Surfaces</h1>
+<p class="muted" id="status">ready</p>
+
+<section>
+  <h2>1. A menu that changes no fingerprint input</h2>
+  <button data-testid="sf-menu" aria-haspopup="menu" aria-expanded="false"
+          aria-controls="sf-menu-list">Actions</button>
+  <ul role="menu" id="sf-menu-list" class="hidden" aria-label="Actions">
+    <li role="menuitem" tabindex="-1"><a href="?view=report">Open report</a></li>
+    <li role="menuitem" tabindex="-1"><a href="?view=summary">Open summary</a></li>
+  </ul>
+  <p class="muted">A dropdown is not a route, a tab, a dialog or a landmark, so the
+     state fingerprint is identical while it is open.</p>
+</section>
+
+<section>
+  <h2>2. Application content in a new tab (same origin)</h2>
+  <a href="child.html?kind=detail" target="_blank" data-testid="sf-tab">Germplasm detail</a>
+  <p class="muted">Modelled on PhenomeOne otype=12, which opens in a new tab.</p>
+</section>
+
+<section>
+  <h2>3. Application content in a scripted window</h2>
+  <button data-testid="sf-popup"
+          onclick="window.open('child.html?kind=popup','_blank','width=520,height=420')">
+    Open plot viewer</button>
+  <p class="muted">window.open() starts at about:blank and navigates a moment later.</p>
+</section>
+
+<section>
+  <h2>4. Content that is NOT the application</h2>
+  <button data-testid="sf-external" onclick="openExternal()">Open knowledge base</button>
+  <p class="muted">Same content, different origin (localhost vs 127.0.0.1): must be
+     closed without disturbing this crawl.</p>
+</section>
+
+<section>
+  <h2>5. Nothing at all</h2>
+  <button data-testid="sf-inert" onclick="void 0">Refresh view</button>
+</section>
+
+<section>
+  <h2>6. Ordinary navigation, for comparison</h2>
+  <a href="child.html?kind=inline" data-testid="sf-inline">Open inline</a>
+</section>
+
+<script>
+const menu = document.getElementById("sf-menu-list");
+const menuBtn = document.querySelector("[data-testid=sf-menu]");
+menuBtn.addEventListener("click", () => {
+  menu.classList.toggle("hidden");
+  menuBtn.setAttribute("aria-expanded", String(!menu.classList.contains("hidden")));
+  document.getElementById("status").textContent =
+    menu.classList.contains("hidden") ? "menu closed" : "menu open";
+});
+
+// A different ORIGIN serving the same host content: localhost and 127.0.0.1 are
+// distinct origins and distinct registrable domains, so this stands in for the
+// real Knowledge Base without needing a network.
+function openExternal() {
+  const u = new URL(location.href);
+  u.hostname = (u.hostname === "localhost") ? "127.0.0.1" : "localhost";
+  u.pathname = u.pathname.replace(/surfaces\.html$/, "child.html");
+  u.search = "?kind=external";
+  window.open(u.toString(), "_blank");
+}
+</script>

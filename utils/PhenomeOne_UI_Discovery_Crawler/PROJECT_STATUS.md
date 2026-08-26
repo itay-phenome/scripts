@@ -5,12 +5,12 @@
 | | |
 |---|---|
 | Last updated | 2026-08-26 |
-| Version | 1.3.2 (discovery + autonomous crawl + functional QA engine + normalised dialog-state identity + **login-timing fixes from the real app**) |
+| Version | 1.4.0 (discovery + **outcome-driven multi-surface crawl** + functional QA engine + real-application tuning) |
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed) |
-| Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (555 MB, v1.3.2, git-ignored) — built in `C:\Users\itay-b\p1uid-build`, then copied. See §5 |
+| Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (555 MB, v1.4.0, git-ignored) — built in `C:\Users\itay-b\p1uid-build`, then copied. See §5 |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **530/530 passing** — 500 source (12 suites) + 30 packaged |
-| Blocked on | **EKS-LAB / real PhenomeOne validation — no credentials in this session** |
+| Tests | **634/634 passing** — 604 source (14 suites, 3 consecutive clean runs) + 30 packaged |
+| Blocked on | **A real autonomous crawl after login.** The two-step login form is not yet supported, so reaching the app still needs a manual sign-in; SCAN and TRAINING work without it |
 | First real run | 2026-08-24 against `eksdemo-helm.phenome-networks.com`: exposed 4 bugs, all fixed (see §2.7) |
 
 ---
@@ -60,8 +60,10 @@ and Playwright locator validation.
 * Returns to a state via `go_back()` first, else replays the discovered locator
   path from the start URL. Roots itself at the start URL so replay always works.
 * Guards: native dialogs always dismissed + the action poisoned; downloads
-  refused at context level (`accept_downloads=False`); popups closed;
-  off-origin navigation reverted + poisoned; **session loss aborts the crawl**.
+  refused at context level (`accept_downloads=False`); off-origin navigation
+  reverted + poisoned; **session loss aborts the crawl**.
+  (Popups were closed on sight here; **superseded by Phase 12E**, which decides
+  from the observed surface instead.)
 * Writes `output/crawl-summary.json`; edges tagged `trigger: "safe-crawl"` with
   the safety class that authorised them.
 
@@ -341,6 +343,111 @@ completes there. The mock reproduces the *shape* of the failure; only a real run
 proves the fix. Manual Login was never the blocked path and remains the
 recommended route for the first real discovery run.
 
+### Phase 12 — Real-application tuning + outcome-driven crawling (2026-08-26)
+
+Driven by the first real discovery run (4 states, 583 elements from
+`eksdemo-helm`) and by the `phenome-agronomist-breeder` skill, which documents
+PhenomeOne's URL scheme and navigation vocabulary. Both are cited below where
+they changed a decision.
+
+**A. Route normalisation for a hash-routed SPA.** PhenomeOne keeps its whole
+location in one hash fragment - `#v=1&r=m&p=8.393426.541306&oid=541306~24&otype=24&oname=List`
+\- so segment-level id matching never saw the ids. Every record opened minted a
+new state, and the record's *name* landed inside the state id
+(`...otype-4-oname-test`), which is business data in the map. `normalise_route`
+now normalises `key=value` pairs: a 4+ digit run, dotted digits, `123~45`, uuid
+or long hex becomes `:id`; a naming parameter (`name`, `oname`, …) becomes
+`:name`. Short enums survive, so `otype=4` (Program) and `otype=23` (Study) stay
+different states - they *are* different screens, 180 vs 210 elements. Two
+Programs now collapse to one `v-1-r-m-otype-4`.
+
+**B. The classifier could not move.** Measured against all 54 documented
+PhenomeOne labels: **3 were auto-clickable**. Every tab and sidebar view was
+UNKNOWN, so Safe Crawl would explore nothing. Added `_APP_NAV_WORDS` - the
+documented tabs, Trial sidebar children, hamburger modules, record-detail tabs -
+kept separate from the generic verb list so what is application-specific stays
+obvious. Also promoted `calculate`, `define`, `distribute` to destructive: on
+the real vocabulary "Calculate variables", "Define germplasm columns" and
+"Distribute lots" were UNKNOWN, i.e. safe only by accident. Result: **23
+navigation / 30 dangerous / 3 unknown**, with destructive precedence intact
+("Delete columns" and "Upload lots - List" stay DANGEROUS).
+
+**C. 38% of the map was layout tables.** 222 of 583 elements were unnamed nested
+`<table>`s, every one LOW with a `getByRole('table').nth(11)` locator no test can
+use. `isLayoutTable()` skips a table only when it is *dominated by another table*
+and has no name, caption, test id, or non-table role - so the outermost data grid
+can never be lost. Excluding them, LOW drops from **49% to ~18%**. The remaining
+real gap is 55 of 71 textboxes unlabelled: that is the `data-testid` ask for
+whoever owns the front end.
+
+**D. "Already signed in" was unreachable.** `APP_MARKERS_JS` required an ARIA
+landmark, and PhenomeOne's fully rendered main frame has none - so no amount of
+waiting could satisfy it. Widened: landmarks now include grid/tree/toolbar, and a
+landmark-free application qualifies on ≥8 controls or ≥5 data rows. **A visible
+password field always means not authenticated**, which keeps Safe Crawl's
+session-loss detection intact. `looks_authenticated(page, wait_s=0.0)` - the
+default is unchanged so the crawler's per-click check keeps its exact timing;
+only interactive sign-in passes a budget.
+
+**E. Outcome-driven multi-surface crawling.** The crawler encoded four fixed
+rules: a popup was closed on sight, a new tab was refused during a crawl, and
+`target=_blank` plus cross-origin were *blocking flags evaluated before the
+click*. Any part of an application living in another browsing context was
+therefore unreachable by construction - including PhenomeOne's germplasm detail
+page, which opens in a new tab.
+
+Replaced with observation. New `crawler/outcomes.py` turns an `Observation` into
+a set of facts - `no-change`, `same-surface-new-state`,
+`surface-changed-same-state`, `new-surface-in-scope|irrelevant|external|unknown`,
+`native-dialog`, `left-origin`, `session-lost`, `unscannable` - with `POISONING`
+and `PRODUCTIVE` sets driving behaviour. It touches no browser, so the whole
+decision table is unit-tested. New `crawler/surfaces.py` holds `Surface`,
+`SurfaceRegistry` and `scope_of()`; a surface records the state and action that
+opened it, and in-scope surfaces get a real `parent -> action -> child` edge
+tagged `opensSurface`.
+
+Three findings worth keeping:
+
+* **Scope cannot be inferred from the page.** The first design was "same
+  registrable domain **and** it looks like an application" - but
+  `knowledge-base.phenome-networks.com` renders 12 visible controls, so every
+  app-shell heuristic calls a documentation site an application, and it would
+  have been crawled. Scope is now origin-based with an explicit `extra_origins`
+  allow-list. Both real cases land correctly.
+* **The signature could not see visibility.** `domSignature` counts interactive
+  nodes whether shown or not (its comment claimed otherwise), so toggling a menu
+  changed nothing and `surface-changed-same-state` never fired. Added a separate
+  `visibleSignature` rather than touching `domSignature`, which drives the
+  timing-sensitive `waitStable`. Measured on the mock: `v=6|s=0` -> `v=11|s=1`.
+* **New contexts were credited to the wrong action.** `window.open()` returns
+  before Playwright has a Page, so the external popup was consistently attributed
+  to the *next* control clicked. Fixed by snapshotting page identities before the
+  click plus a bounded 600 ms poll that exits on first appearance - correct by
+  construction. This was the flake, 2 runs in 3.
+
+`target=_blank` no longer blocks; **cross-origin deliberately still does** - a
+link advertising that it leaves the application offers a crawler nothing, while
+an external surface the application produces itself is observed and handled.
+
+Deliberate limit: a child surface is explored **inline at discovery, then
+closed**. Re-reaching it later would mean re-opening the tab by replaying the
+parent action, and its state may not survive that; the edge is recorded either
+way.
+
+Two test assertions had to change, both because they encoded removed rules, and
+both replaced with the stronger property rather than deleted:
+* `test_safety.py` required "target=_blank is never auto-clicked" -> now asserts
+  a same-origin blank link **is** clickable while destructive and cross-origin
+  ones are still refused;
+* `test_redteam.py` required a `popup-closed` incident -> now asserts a popup is
+  either explored or disposed of **and** none is left open. Its popup opens a
+  same-origin page, so the crawler now *discovers* `outer_frame.html` ("Outer
+  widget"), a state the old rule made permanently invisible.
+
+**Retracted:** a predicted Dojo volatile-id problem (`dijit_form_TextBox_0`).
+Zero elements in the real map carry an `id` at all, so no id-based locator was
+ever generated. No change made.
+
 ---
 
 ## 3. Test status
@@ -352,20 +459,22 @@ Run everything three times from a clean state with:
 
 | Suite | Checks | Covers |
 |---|---|---|
-| `test_units.py` | 95 | fingerprints incl. **dialog-title normalisation (40)**, locators, store merge, redaction, login analysis, nav tree, report |
-| `test_safety.py` | 103 | classifier: 69 unit + 34 live on the hardened mock |
+| `test_units.py` | 123 | fingerprints incl. **dialog-title normalisation (40)**, locators, store merge, redaction, login analysis, nav tree, report |
+| `test_safety.py` | 105 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary |
 | `test_crawler.py` | 22 | autonomous crawl, budgets, idempotence, **zero side effects** |
+| `test_surfaces.py` | 45 | surface scope + the outcome decision table (no browser) |
+| `test_multisurface.py` | 22 | **autonomous crawling across tabs/windows**: menu with no fingerprint change, same-origin tab and popup explored, off-origin closed, parent crawl survives |
 | `test_pipeline.py` | 50 | workflows, UI diff, codegen, JUnit, CI exit codes |
 | `test_recovery.py` | 23 | the live-environment failures above, incl. the **Manual Login double-press race** |
-| `test_hardgrid.py` | 25 | component-framework UI: portaled combobox, virtualised grid, volatile dialog titles |
+| `test_hardgrid.py` | 31 | component-framework UI: portaled combobox, virtualised grid, volatile dialog titles |
 | `test_functional.py` | 48 | the functional milestone: full CRUD lifecycle, both fail-closed guards, evidence, cleanup-after-failure, Safe Crawl untouched |
-| `test_redteam.py` | 36 | adversarial surface: URL commands, popups, JS downloads, nested iframes, loops, ambiguity, unlabelled controls |
+| `test_redteam.py` | 37 | adversarial surface: URL commands, popups, JS downloads, nested iframes, loops, ambiguity, unlabelled controls |
 | `test_artifacts.py` | 34 | exact artifact set, schema keys, **generated Python executed against the mock**, leak scan |
 | `test_e2e_mock.py` | 30 | login → scan → training → outputs |
 | `test_login_variants.py` | 13 | slow form, iframe IdP form, landing page, no form, **late-rendering username field** (appears / never appears) |
 | `test_gui_smoke.py` | 21 | real Tk window driving the real browser |
 | `test_packaged.py` | 30 | relocated frozen build in a stripped environment |
-| **Total** | **530** | 500 source + 30 packaged, all passing as of this update |
+| **Total** | **634** | 604 source + 30 packaged, all passing as of this update |
 
 `test_packaged.py` takes a path: `python tests/test_packaged.py <dist>/PhenomeOne-UI-Discovery`.
 It **moves** the folder (relocation test), so pass the current location.

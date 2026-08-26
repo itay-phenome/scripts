@@ -75,6 +75,25 @@
   </div>
 </div>
 
+<!--
+  Nested layout tables, the way an older enterprise UI builds a page. The real
+  PhenomeOne produced 222 of these, all unnamed, all LOW confidence. Only the
+  OUTERMOST table should be recorded as an element: the inner ones are dominated
+  by it and carry no identity. The two exceptions must survive nesting - one
+  named by aria-label, one carrying a test id.
+-->
+<table id="lt-outer">
+  <tr><td>
+    <table><tr><td>
+      <table><tr><td>
+        <table aria-label="Trait summary"><tr><td>named, keep me</td></tr></table>
+        <table data-testid="lt-tagged"><tr><td>tagged, keep me</td></tr></table>
+        <table><tr><td>layout only, drop me</td></tr></table>
+      </td></tr></table>
+    </td></tr></table>
+  </td></tr>
+</table>
+
 <div id="hg-backdrop" class="backdrop hidden"></div>
 <div id="hg-dialog" class="modal hidden" role="dialog" aria-modal="true"
      aria-labelledby="hg-dialog-title">

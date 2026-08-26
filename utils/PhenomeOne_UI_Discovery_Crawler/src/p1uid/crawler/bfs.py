@@ -11,8 +11,17 @@ What it will not do
 * click anything DANGEROUS, CONDITIONAL or UNKNOWN;
 * accept a native dialog - `confirm()`/`alert()` are always dismissed, and the
   action that raised one is never retried;
-* accept a download, follow a cross-origin link, or keep a popup;
+* accept a download, or stay on a surface that is not the application;
 * continue after the session is lost (a login form reappearing aborts the run).
+
+How it decides what an action did
+---------------------------------
+Nothing is predicted from the control's attributes. The action is performed, the
+browser is observed, and `outcomes.classify()` turns what happened into a set of
+facts: a new state, a surface change with no new state (an opened menu), a new
+browsing context and whether it belongs to the application, a native dialog, an
+off-origin navigation, a lost session, or nothing at all. See `surfaces.py` for
+how a new tab or window is judged to be ours.
 
 How it returns to a state
 -------------------------
@@ -32,7 +41,7 @@ from ..discovery import scanner, stability
 from ..locator import validator
 from ..logging_setup import get
 from ..store.uimap import element_key
-from . import safety
+from . import outcomes, safety, surfaces
 
 log = get("crawler")
 
@@ -74,6 +83,12 @@ class CrawlResult:
     limit_hit: str = ""
     timeline: list[dict[str, Any]] = field(default_factory=list)
     classification_totals: dict[str, int] = field(default_factory=dict)
+    # What actions actually did, counted by observed outcome rather than by the
+    # kind of control that was clicked.
+    outcome_totals: dict[str, int] = field(default_factory=dict)
+    surfaces_opened: int = 0
+    surface_changes: int = 0
+    surfaces: list[dict[str, Any]] = field(default_factory=list)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -89,6 +104,10 @@ class CrawlResult:
             "skippedByReason": self.skipped,
             "inertElements": self.inert_elements,
             "classificationTotals": self.classification_totals,
+            "outcomeTotals": self.outcome_totals,
+            "surfacesOpened": self.surfaces_opened,
+            "surfaceChanges": self.surface_changes,
+            "surfaces": self.surfaces,
             "incidents": self.incidents,
             "abortedBecause": self.aborted,
             "limitHit": self.limit_hit,
@@ -123,7 +142,13 @@ class SafeCrawler:
         self._noop_seen: dict[str, set[str]] = {}  # element -> states where it did nothing
         self._dialog_seen: list[str] = []
         self._page = None
-        self._handlers: list[tuple[str, Any]] = []
+        self._handlers: list[tuple[Any, str, Any]] = []
+        # Browsing contexts that appeared during the action currently in flight.
+        # Collected by the popup listener, classified in `_click`.
+        self._pending_pages: list[Any] = []
+        self.registry: surfaces.SurfaceRegistry | None = None
+        # Extra origins the caller declares as part of the application.
+        self.extra_origins: tuple[str, ...] = ()
 
     # ------------------------------------------------------------- budgeting
     def _budget_left(self) -> str:
@@ -159,26 +184,21 @@ class SafeCrawler:
             log.warning("A download was triggered and refused")
 
         def on_popup(popup: Any) -> None:
-            self.result.incidents.append({"kind": "popup-closed", "url": (popup.url or "")[:200]})
-            log.warning("A popup opened during the crawl and was closed")
-
-            async def _close() -> None:
-                try:
-                    await popup.close()
-                except Exception:
-                    pass
-
-            import asyncio
-            asyncio.ensure_future(_close())
+            # COLLECT, do not decide. Closing a popup here was a fixed rule that
+            # made any part of the application opening in a new browsing context
+            # unreachable - and it closed asynchronously, racing the scan that
+            # followed. What this is gets decided in `_click`, from its URL.
+            self._pending_pages.append(popup)
 
         for event, fn in (("dialog", on_dialog), ("download", on_download), ("popup", on_popup)):
             page.on(event, fn)
-            self._handlers.append((event, fn))
+            self._handlers.append((page, event, fn))
 
-    def _remove_guards(self, page: Any) -> None:
-        for event, fn in self._handlers:
+    def _remove_guards(self, page: Any = None) -> None:
+        """Detach every listener we installed, on every surface."""
+        for owner, event, fn in self._handlers:
             try:
-                page.remove_listener(event, fn)
+                owner.remove_listener(event, fn)
             except Exception:
                 pass
         self._handlers.clear()
@@ -326,6 +346,9 @@ class SafeCrawler:
         if not self.engine.base_url:
             self.engine.base_url = self._page.url
 
+        self.registry = surfaces.SurfaceRegistry(self.engine.base_url, self.extra_origins)
+        self.registry.register(self._page, kind=surfaces.MAIN, scope=surfaces.IN_SCOPE)
+
         self._install_guards(self._page)
         log.info("Safe Crawl starting - limits: %d states, %d actions, depth %d, %.0fs",
                  self.limits.max_states, self.limits.max_actions, self.limits.max_depth,
@@ -333,14 +356,19 @@ class SafeCrawler:
         try:
             await self._crawl()
         finally:
-            self._remove_guards(self._page)
+            self._remove_guards()
             self.result.inert_elements = len(self._noop_elements)
             self.result.duration_s = time.monotonic() - self._start
+            if self.registry is not None:
+                self.result.surfaces = self.registry.to_json()
 
         log.info("Safe Crawl finished: %d states (%d new), %d actions clicked, %d new paths%s",
                  self.result.states_visited, len(self.result.new_states),
                  self.result.actions_clicked, self.result.edges_new,
                  f", ABORTED: {self.result.aborted}" if self.result.aborted else "")
+        if self.result.outcome_totals:
+            log.info("What actions did: %s", ", ".join(
+                f"{k}={v}" for k, v in sorted(self.result.outcome_totals.items())))
         if self.result.skipped:
             log.info("Not clicked: %s", ", ".join(f"{k}={v}" for k, v in
                                                   sorted(self.result.skipped.items())))
@@ -436,11 +464,166 @@ class SafeCrawler:
                         "type": cand.element.get("type"),
                     }]))
 
+    # ------------------------------------------------------------- surfaces
+    def _page_ids(self) -> set[int]:
+        try:
+            return {id(p) for p in self.engine.context.pages}
+        except Exception:
+            return set()
+
+    async def _await_new_context(self, before: set[int], budget_ms: int = 600) -> None:
+        """Give a browsing context a bounded moment to attach.
+
+        `window.open()` returns before Playwright has a Page for the new target,
+        so a diff taken immediately after the settle wait sometimes missed it -
+        and the context was then found during the NEXT action and credited to the
+        wrong control. Waiting here makes the attribution correct by
+        construction; it exits as soon as something appears, so an action that
+        opens nothing pays only the first poll.
+        """
+        waited = 0
+        while waited < budget_ms:
+            if self._page_ids() - before:
+                return
+            await self._page.wait_for_timeout(100)
+            waited += 100
+
+    async def _collect_new_surfaces(self, before: set[int]) -> list[tuple[Any, str]]:
+        """Resolve the scope of every browsing context this action opened.
+
+        A new context needs a moment to have a real URL: `window.open()` starts
+        at about:blank and navigates immediately afterwards, so classifying it
+        the instant the event fires would call the application UNKNOWN.
+        """
+        # The popup event can be delivered after the settle wait, which made
+        # detection timing-dependent: the same click reported a new surface on one
+        # run and nothing on the next. So the event is a hint, and the authority
+        # is the context's own page list - a browsing context that exists and is
+        # not in the registry is new, however it was opened.
+        pending: list[Any] = list(self._pending_pages)
+        try:
+            for page in self.engine.context.pages:
+                if page is self._page or id(page) in before:
+                    continue                      # existed before this action
+                if self.registry is not None and self.registry.find(page) is not None:
+                    continue
+                if not any(page is p for p in pending):
+                    pending.append(page)
+        except Exception:
+            log.debug("Could not enumerate browsing contexts")
+
+        found: list[tuple[Any, str]] = []
+        for page in pending:
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=4000)
+            except Exception:
+                pass                      # a slow or already-closed context
+            scope = await surfaces.scope_of(page, self.engine.base_url, self.extra_origins)
+            found.append((page, scope))
+        self._pending_pages.clear()
+        return found
+
+    async def _dispose_surface(self, page: Any, why: str, action: str) -> None:
+        """Close a context that is not ours, without disturbing the parent."""
+        url = ""
+        try:
+            url = page.url or ""
+        except Exception:
+            pass
+        self.result.incidents.append({"kind": f"surface-{why}", "action": action,
+                                      "url": url[:200]})
+        log.info("A %s surface opened via %r (%s); closing it and continuing",
+                 why, action, url[:80] or "unknown url")
+        try:
+            if not page.is_closed():
+                await page.close()
+        except Exception:
+            log.debug("Could not close a %s surface", why)
+
+    async def _handle_new_surfaces(self, obs: outcomes.Observation, state_id: str,
+                                   cand: _Candidate) -> list[str]:
+        """Register application surfaces, dispose of the rest.
+
+        Returns the states discovered on child surfaces. The parent surface is
+        untouched throughout: `self._page` only ever moves inside
+        `_explore_surface`, which restores it.
+        """
+        discovered: list[str] = []
+        for page, scope in obs.new_surfaces:
+            if scope != surfaces.IN_SCOPE:
+                await self._dispose_surface(page, scope, cand.label)
+                continue
+            if self.registry is None:
+                continue
+            kind = surfaces.TAB if (cand.element.get("type") == "link") else surfaces.POPUP
+            surface = self.registry.register(page, kind=kind, scope=scope,
+                                             opened_by_state=state_id,
+                                             opened_by_action=cand.label)
+            self.result.surfaces_opened += 1
+            log.info("A surface of the application opened via %r: %s",
+                     cand.label, surface.describe())
+            discovered += await self._explore_surface(surface, state_id, cand)
+        return discovered
+
+    async def _explore_surface(self, surface: Any, parent_state: str,
+                               cand: _Candidate) -> list[str]:
+        """Scan a child surface, record the parent -> action -> child edge.
+
+        The child is explored while we are on it and then closed: a child tab is
+        not re-reachable by replaying from the start URL, so exploring it later
+        would mean re-opening it, and its state may not survive that. Recording
+        the relationship now keeps the graph honest either way.
+        """
+        found: list[str] = []
+        parent_page = self._page
+        try:
+            self._page = surface.page
+            res = await self._scan()
+            if res is None:
+                self._skip("unscannable-surface")
+                return found
+            surface.visited.add(res.state_id)
+            found.append(res.state_id)
+            action = {
+                "type": cand.element.get("type") or "click",
+                "name": cand.label,
+                "role": cand.element.get("role") or "",
+                "interaction": "crawler-click",
+                "trigger": "safe-crawl",
+                "safety": cand.verdict.classification,
+                "locator": cand.locator.js,
+                "locatorSpec": cand.locator.to_json(),
+                # How this state is reached matters to anyone replaying it: the
+                # child lives in its own browsing context, not in the parent.
+                "opensSurface": {"kind": surface.kind, "scope": surface.scope},
+            }
+            if self.store.merge_edge(parent_state, action, res.state_id):
+                self.result.edges_new += 1
+            if res.is_new_state:
+                self.result.new_states.append(res.state_id)
+                log.info("New state discovered on a %s surface: %s (%s)",
+                         surface.kind, res.state_id, res.label)
+        except Exception as exc:
+            log.warning("Could not explore the %s surface: %s", surface.kind, type(exc).__name__)
+        finally:
+            self._page = parent_page
+            try:
+                if not surface.page.is_closed():
+                    await surface.page.close()
+            except Exception:
+                pass
+            if self.registry is not None:
+                self.registry.forget(surface)
+        return found
+
     async def _click(self, state_id: str, path: list[dict[str, Any]],
                      cand: _Candidate) -> str:
-        """Click one safe candidate and record where it led."""
+        """Click one safe candidate, observe what happened, and record it."""
         before_dialogs = len(self._dialog_seen)
         origin_before = self.engine.origin
+        sig_before = await stability.visible_signature(self._page)
+        self._pending_pages.clear()      # only contexts from THIS action count
+        pages_before = self._page_ids()  # so a new context is attributed correctly
         try:
             handle = validator.build(cand.frame, cand.locator)
             if await handle.count() != 1:
@@ -456,37 +639,70 @@ class SafeCrawler:
 
         await stability.wait_stable(self._page, timeout_ms=self.limits.settle_timeout_ms)
 
-        if len(self._dialog_seen) > before_dialogs:
-            # It raised a native dialog: the classifier under-rated it. Never again.
-            self._poison.add((state_id, cand.key))
-            self._skip("raised-native-dialog")
-            log.warning("%r raised a native dialog; poisoned and not retried", cand.label)
+        # ---- observe, then classify. No decision is taken from the control's
+        # ---- attributes: only from what the browser actually did.
+        obs = outcomes.Observation(
+            state_before=state_id,
+            signature_before=sig_before,
+            dialogs_raised=len(self._dialog_seen) - before_dialogs,
+            origin_before=origin_before,
+            session_lost=await self._session_lost(),
+        )
+        try:
+            obs.origin_after = await self._page.evaluate("() => location.origin")
+        except Exception:
+            obs.origin_after = origin_before
+        await self._await_new_context(pages_before)
+        obs.new_surfaces = await self._collect_new_surfaces(pages_before)
 
-        if await self._session_lost():
+        res = await self._scan()
+        obs.scannable = res is not None
+        if res is not None:
+            obs.state_after = res.state_id
+            obs.signature_after = await stability.visible_signature(self._page)
+
+        verdict = outcomes.classify(obs)
+        self.result.outcome_totals[verdict.primary] = \
+            self.result.outcome_totals.get(verdict.primary, 0) + 1
+
+        if outcomes.SESSION_LOST in verdict:
             self.result.aborted = f"session lost after clicking {cand.label!r}"
             self.result.incidents.append({"kind": "session-lost", "action": cand.label})
             log.error("Session lost after clicking %r - aborting the crawl", cand.label)
             return "aborted"
 
-        try:
-            origin_now = await self._page.evaluate("() => location.origin")
-        except Exception:
-            origin_now = origin_before
-        if origin_before and origin_now != origin_before:
-            self._poison.add((state_id, cand.key))
-            self.result.incidents.append({"kind": "left-origin", "action": cand.label,
-                                          "origin": origin_now})
-            log.warning("%r left the origin (%s); returning and poisoning it", cand.label, origin_now)
-            await self._replay(path)
-            return "skipped"
+        if outcomes.NATIVE_DIALOG in verdict:
+            self._skip("raised-native-dialog")
+            log.warning("%r raised a native dialog; poisoned and not retried", cand.label)
 
-        res = await self._scan()
-        if res is None:
+        # New browsing contexts: keep the ones that are the application, dispose
+        # of the rest - and never let either break the parent crawl.
+        child_states = await self._handle_new_surfaces(obs, state_id, cand)
+
+        if outcomes.LEFT_ORIGIN in verdict:
+            self.result.incidents.append({"kind": "left-origin", "action": cand.label,
+                                          "origin": obs.origin_after})
+            log.warning("%r left the origin (%s); returning and poisoning it",
+                        cand.label, obs.origin_after)
+            await self._replay(path)
+
+        if verdict.poisons:
+            self._poison.add((state_id, cand.key))
+
+        if outcomes.UNSCANNABLE in verdict:
             self._skip("unscannable-destination")
             return "skipped"
 
         dest = res.state_id
-        if dest == state_id:
+        if outcomes.SURFACE_CHANGED in verdict:
+            # The DOM moved but no fingerprint input did - an opened menu, an
+            # expanded panel, an iframe that filled in. This is NOT inert, so the
+            # control must never be pruned; the newly revealed controls are picked
+            # up because the re-scan above merged them into this same state.
+            self.result.surface_changes += 1
+            log.info("%r changed the surface without changing the state", cand.label)
+
+        if dest == state_id and not verdict.productive:
             self._skip("no-state-change")
             # Inert HERE is not proof it is inert everywhere: a "Details" button
             # can do nothing on an empty grid and open a panel elsewhere. Only
@@ -495,7 +711,7 @@ class SafeCrawler:
             seen_in.add(state_id)
             if len(seen_in) >= 2:
                 self._noop_elements.add(cand.key)
-        else:
+        elif dest != state_id:
             action = {
                 "type": cand.element.get("type") or "click",
                 "name": cand.label,
