@@ -28,10 +28,39 @@
   </table>
   <p><a href="surfaces.html" data-testid="child-back">Back to surfaces</a></p>
   <button data-testid="child-only">Child-only control</button>
+
+  <!-- A second level INSIDE the child surface: scanning the landing state and
+       closing the tab would map the door and none of the rooms. -->
+  <p><a href="#view=pedigree" data-testid="child-deeper">Pedigree Tree</a></p>
+  <!-- The hash, not the query: the state fingerprint is path + hash, so a
+       query-only change would not register as a new state. -->
 </main>
 
+
 <script>
-const kind = new URLSearchParams(location.search).get("kind") || "detail";
+const params = new URLSearchParams(location.search);
+const kind = params.get("kind") || "detail";
 document.getElementById("head").textContent = "Germplasm detail (" + kind + ")";
 document.title = "PhenomeOne child: " + kind;
+
+// A child surface that is an authentication gate, not content. Built here
+// rather than shipped hidden in the markup: the scanner records hidden elements,
+// so a hidden gate would appear in the map from any scan of this page and there
+// would be no way to prove the gate surface itself was never scanned.
+if (kind === "gate") {
+  document.querySelector('main[aria-label="Germplasm detail"]').remove();
+  const g = document.createElement("section");
+  g.setAttribute("aria-label", "Sign in");
+  g.innerHTML = '<h2>Welcome back.</h2>' +
+    '<label for="gate-user">User</label><input id="gate-user" type="text">' +
+    '<label for="gate-pw">Password</label><input id="gate-pw" type="password">' +
+    '<button data-testid="gate-continue">Continue</button>';
+  document.body.appendChild(g);
+}
+
+// A child surface the application closes underneath the crawler. The parent
+// crawl must survive it rather than dying on a closed page.
+if (kind === "selfclose") {
+  setTimeout(() => { try { window.close(); } catch (e) { } }, 900);
+}
 </script>

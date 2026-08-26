@@ -154,6 +154,45 @@ def main() -> int:
                   "child-only" in json.dumps(engine.store.data["states"]),
                   "child-only control missing from the map")
 
+            print("\n[4b] a child surface is CRAWLED, not just glanced at")
+            # Scanning the landing state and closing the tab would map the door
+            # and none of the rooms. The anchor matters: the first candidate on
+            # the child is a "Back" link, and without returning to the landing
+            # state every later candidate vanishes.
+            inner = [e for e in nav if (e.get("action") or {}).get("onSurface")]
+            print(f"    in-surface edges: "
+                  f"{[(e['from'], (e.get('action') or {}).get('name'), e['to']) for e in inner]}")
+            check("a state was discovered INSIDE a child surface", len(inner) >= 1,
+                  f"{len(inner)} in-surface edges")
+            check("the edge records which surface it happened on",
+                  all((e["action"]["onSurface"] or {}).get("kind") in (S.TAB, S.POPUP)
+                      for e in inner), str(inner[:1]))
+            check("the deeper child state is in the map",
+                  any("pedigree" in e["to"] for e in inner),
+                  str([e["to"] for e in inner]))
+
+            print("\n[4c] a child surface that asks for credentials is left alone")
+            gate = [i for i in result.incidents
+                    if i.get("kind") == "surface-unauthenticated"]
+            check("the sign-in gate was recognised and refused", bool(gate), str(result.incidents))
+            states_blob = json.dumps(engine.store.data["states"])
+            check("no control from the gate entered the map",
+                  "gate-continue" not in states_blob and "gate-pw" not in states_blob,
+                  "a sign-in control was recorded from a child surface")
+            check("and the crawl carried on afterwards", not result.aborted, result.aborted)
+
+            print("\n[4d] a child surface the application closes is survivable")
+            # It closes itself ~0.9 s after opening. Whether the crawler finishes
+            # first or is caught mid-exploration is a race by design; what must
+            # hold either way is that the parent crawl does not die.
+            check("the crawl survived a self-closing surface",
+                  not result.aborted and result.states_visited >= 2,
+                  f"aborted={result.aborted!r}")
+            check("a closed surface is never left marked open",
+                  all(s.get("closed") for s in result.surfaces
+                      if s.get("kind") in (S.TAB, S.POPUP)),
+                  str([s for s in result.surfaces if not s.get("closed")]))
+
             print("\n[5] content that is not the application is refused")
             check("an out-of-scope surface was observed and disposed of",
                   totals.get(O.NEW_SURFACE_EXTERNAL, 0) >= 1

@@ -56,6 +56,11 @@ class CrawlLimits:
     max_actions: int = 250
     max_depth: int = 6
     per_state_actions: int = 30
+    # How far to explore inside a child tab/window. Kept small on purpose: a
+    # child context cannot be re-reached by replaying from the start URL, so
+    # there is nowhere to return to if exploration wanders. Its clicks still
+    # count against max_actions.
+    per_surface_actions: int = 8
     time_budget_s: float = 300.0
     click_timeout_ms: int = 5000
     settle_timeout_ms: int = 4000
@@ -654,8 +659,12 @@ class SafeCrawler:
         sign-in form.
         """
         found: list[str] = []
-        state_id = res.state_id
+        landing = res.state_id
         clicked = 0
+        # Anchor on the landing state. The first candidate is often a "Back" link
+        # that navigates the child away, and every remaining candidate then
+        # vanishes - which made depth inside a child depend on DOM order. After
+        # each click that moves, come back to the anchor so the rest stay valid.
         for child_cand in self._candidates(res):
             if clicked >= self.limits.per_surface_actions:
                 break
@@ -671,18 +680,34 @@ class SafeCrawler:
                 log.info("The %s surface closed itself; returning to the parent", surface.kind)
                 break
 
-            next_res = await self._click_on_surface(surface, state_id, child_cand)
+            next_res = await self._click_on_surface(surface, landing, child_cand)
             clicked += 1
             if next_res is None:
                 continue
-            if next_res.state_id != state_id:
+            if next_res.state_id != landing:
                 surface.visited.add(next_res.state_id)
                 found.append(next_res.state_id)
-                # Explore from the state we actually landed on, so a two-step
-                # path inside the child is still reachable.
-                state_id = next_res.state_id
-                res = next_res
+                if not await self._return_on_surface(surface, landing):
+                    log.info("Could not return to %s inside the %s surface; stopping there",
+                             landing, surface.kind)
+                    break
         return found
+
+    async def _return_on_surface(self, surface: Any, landing: str) -> bool:
+        """Go back to a child surface's landing state. False if it is gone."""
+        try:
+            if surface.page.is_closed():
+                return False
+            await surface.page.go_back(timeout=5000, wait_until="domcontentloaded")
+            await stability.wait_stable(surface.page, timeout_ms=self.limits.settle_timeout_ms)
+        except Exception:
+            return False
+        self.result.back_navigations += 1
+        if await surfaces.scope_of(surface.page, self.engine.base_url,
+                                   self.extra_origins) != surfaces.IN_SCOPE:
+            return False
+        res = await self._scan()
+        return res is not None and res.state_id == landing
 
     async def _click_on_surface(self, surface: Any, state_id: str,
                                 cand: _Candidate) -> Any:

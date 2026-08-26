@@ -33,8 +33,8 @@
   <button data-testid="sf-menu" aria-haspopup="menu" aria-expanded="false"
           aria-controls="sf-menu-list">Actions</button>
   <ul role="menu" id="sf-menu-list" class="hidden" aria-label="Actions">
-    <li role="menuitem" tabindex="-1"><a href="?view=report">Open report</a></li>
-    <li role="menuitem" tabindex="-1"><a href="?view=summary">Open summary</a></li>
+    <li role="menuitem" tabindex="-1"><a href="#view=report">Open report</a></li>
+    <li role="menuitem" tabindex="-1"><a href="#view=summary">Open summary</a></li>
   </ul>
   <p class="muted">A dropdown is not a route, a tab, a dialog or a landmark, so the
      state fingerprint is identical while it is open.</p>
@@ -62,13 +62,26 @@
 </section>
 
 <section>
+  <h2>4b. A child surface that is a sign-in gate</h2>
+  <a href="child.html?kind=gate" target="_blank" data-testid="sf-gate">Open secured view</a>
+  <p class="muted">Same origin, so it IS ours - but it asks for credentials, so it
+     is not explorable content and must be left alone.</p>
+</section>
+
+<section>
+  <h2>4c. A child surface the application closes itself</h2>
+  <a href="child.html?kind=selfclose" target="_blank" data-testid="sf-selfclose">Open transient view</a>
+  <p class="muted">Closes after ~0.9 s. The parent crawl must survive it.</p>
+</section>
+
+<section>
   <h2>5. Nothing at all</h2>
   <button data-testid="sf-inert" onclick="void 0">Refresh view</button>
 </section>
 
 <section>
   <h2>6. Ordinary navigation, for comparison</h2>
-  <a href="child.html?kind=inline" data-testid="sf-inline">Open inline</a>
+  <a href="#view=inline" data-testid="sf-inline">Open inline</a>
 </section>
 
 <script>
