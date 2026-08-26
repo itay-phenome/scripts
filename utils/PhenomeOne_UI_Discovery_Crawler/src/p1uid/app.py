@@ -18,6 +18,34 @@ from .logging_setup import get, register_secret, setup
 PASSWORD_ENV = "P1UID_PASSWORD"
 
 
+def _run_functional(args, engine, log) -> int:
+    """Execute a functional suite. Returns 6 if any test failed."""
+    from .functional.steps import load_suite
+
+    try:
+        suite = load_suite(args.run_tests)
+    except (OSError, ValueError, KeyError) as exc:
+        log.error("Cannot load the functional suite: %s", exc)
+        return 2
+    suite = suite.select(level=args.test_level, names=args.test_name)
+    if not suite.tests:
+        log.error("No tests selected from %s (level=%s, names=%s)",
+                  args.run_tests, args.test_level, args.test_name)
+        return 2
+    result = engine.call(lambda: engine.op_run_functional(suite, run_id=args.run_id),
+                         timeout=3600)
+    if result is None:
+        log.error("The functional suite could not be started")
+        return 6
+    log.info("FUNCTIONAL: %s", result.summary_line())
+    for t in result.tests:
+        log.info("  %-6s %s (%s)%s", t.status, t.name, t.level,
+                 f" - {t.failure}" if t.failure else "")
+    if result.leftovers:
+        log.error("Leftover test data: %s", ", ".join(result.leftovers))
+    return 0 if result.ok else 6
+
+
 def _ci_gate(args, engine, log) -> int:
     """Jenkins gate: non-zero when the map is not good enough to test against."""
     counts = engine.store.counts()
@@ -87,6 +115,10 @@ def _cli(args) -> int:
                  counts["confidence"].get("HIGH", 0), counts["confidence"].get("MEDIUM", 0),
                  counts["confidence"].get("LOW", 0))
         rc = _ci_gate(args, engine, log) or rc
+
+        if args.run_tests:
+            frc = _run_functional(args, engine, log)
+            rc = frc or rc
     finally:
         engine.shutdown_blocking()
     return rc
@@ -149,6 +181,13 @@ def main(argv: list[str] | None = None) -> int:
                     help="diff two ui-map.json files and exit")
     ap.add_argument("--fail-on-low", type=int, default=-1, metavar="N",
                     help="exit 4 when more than N LOW-confidence locators exist (CI gate)")
+    ap.add_argument("--run-tests", metavar="SUITE.json",
+                    help="run a declarative functional suite after discovery (exit 6 on failure)")
+    ap.add_argument("--test-level", choices=("smoke", "critical", "full"),
+                    help="only run tests at this level or below")
+    ap.add_argument("--test-name", action="append", metavar="NAME",
+                    help="run only the named test (repeatable)")
+    ap.add_argument("--run-id", help="override the generated RUN_ID for test data")
     ap.add_argument("--debug", action="store_true", help="verbose logging")
     ap.add_argument("--version", action="store_true")
     args = ap.parse_args(argv)
@@ -161,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     paths.ensure_dirs()
     setup(debug=args.debug)
     if args.version:
-        print(f"{paths.APP_NAME} 1.1.2")
+        print(f"{paths.APP_NAME} 1.2.0")
         return 0
 
     if args.diff:

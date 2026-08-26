@@ -4,12 +4,12 @@
 
 | | |
 |---|---|
-| Last updated | 2026-08-24 |
-| Version | 1.1.2 (V1 + autonomous discovery + live hardening + QA/red-team pass) |
-| Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` (uncommitted, nothing pushed) |
-| Build output | `C:\Users\itay-b\p1uid-final2\PhenomeOne-UI-Discovery\` (555 MB) |
+| Last updated | 2026-08-26 |
+| Version | 1.2.0 (discovery + autonomous crawl + **functional QA engine, Phase 1**) |
+| Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed; Phase 1 work is local until committed) |
+| Build output | `C:\Users\itay-b\p1uid-phase1\PhenomeOne-UI-Discovery\` (555 MB, v1.2.0) |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **395/395 passing** — 365 source (10 suites) + 30 packaged |
+| Tests | **444/444 passing** — 414 source (11 suites, 3 consecutive clean runs) + 30 packaged |
 | Blocked on | **EKS-LAB / real PhenomeOne validation — no credentials in this session** |
 | First real run | 2026-08-24 against `eksdemo-helm.phenome-networks.com`: exposed 4 bugs, all fixed (see §2.7) |
 
@@ -119,8 +119,7 @@ Adversarial pass whose goal was to make the tool do damage. Bugs found and fixed
 | 2 | Medium (precision) | An embedded sign-in widget (an IdP iframe on a page) aborted a healthy crawl as "session lost". | Session loss now requires a visible password field **and** the app no longer rendering (`looks_authenticated`). |
 | 3 | Medium (efficiency) | Naive BFS re-clicked global controls from every state: 120 clicks / 151 s for 11 states, hitting the action budget with 30 no-op clicks. | Inert elements are learned and skipped globally; one element may be retried from at most `max_repeats_per_element` (3) states. **40 clicks / 56 s for the same 11 states** — no budget exhaustion. |
 | 4 | Low (consumer) | Generated page objects listed dialog/menu locators with no hint that they cannot resolve until that surface is open, so a consumer sees them as broken. | Each such property is annotated `NOT VISIBLE in this state: open <dialog> first`, plus machine-readable `NEEDS_OPENING` / `STATES` registries in both TS and Python. |
-| 5 | Low (self-inflicted) | Scripted edits silently mangled ``, `
-` and `\s` into control bytes, once disabling a live regex rule. | Every scripted edit is followed by a control-byte scan of `src/` (command in §5). |
+| 5 | Low (self-inflicted) | Scripted edits silently mangled backslash-escapes (backslash-b, backslash-n, backslash-s) into raw control bytes, once disabling a live regex rule. | Every scripted edit is followed by a control-byte scan of `src/` (command in section 5). |
 
 Test-premise defects corrected (not product bugs, but they made a test lie):
 * the "report is self-contained" check rejected an environment URL printed as
@@ -134,6 +133,68 @@ Accepted limitation (documented, not fixed): a control whose accessible name
 **misdescribes** its behaviour ("View report" that deletes) cannot be classified
 from the DOM. Mitigation: crawl only non-production environments, and the
 per-app vocabulary tuning in §4.
+
+### Phase 9 — Functional QA engine (Phase 1 of the QA platform, 2026-08-26)
+
+The discovery engine now has a functional-testing layer on top of it. Discovery
+is unchanged; nothing was refactored broadly.
+
+**1. Fixed: the data home hijacked the browser lookup.** `BROWSER_DIR` was derived
+from `APP_DIR`, so `P1UID_HOME` (used to put outputs in a CI workspace) silently
+moved the bundled-Chromium lookup too and fell back to a "development mode" cache
+that does not exist on a clean machine. Now `INSTALL_DIR` (executable + browser)
+and `APP_DIR` (data) are separate; `P1UID_BROWSERS_PATH` overrides the browser
+explicitly.
+
+**2. Declarative step model** — `functional/steps.py`. A test is JSON:
+`navigate | click | fill | select | assert`, with targets resolved against the
+existing UI map (`state#key`, test id, role+name, text, or a raw locator spec) and
+`within` for scoping to a grid row. Levels (`smoke`/`critical`/`full`) are declared
+and selectable via `--test-level`.
+
+**3. Execution reuses discovery, does not duplicate it** — `functional/runner.py`.
+Targets become `locator.generator.Locator` objects resolved by
+`locator.validator.build()`; routes come from the new
+`navigation.graph.shortest_path()` over observed edges; state identity comes from
+`discovery.scanner`; settling from `discovery.stability`. The runner adds only
+actions, assertions and guards.
+
+**4. Destructive actions fail closed.** A create/update/delete step must declare
+`destructive: true`; the runner then refuses to click unless the current state
+equals the declared state, the target resolves to exactly one element, and it is
+visible and enabled. **Safe Crawl and `crawler/safety.py` are untouched** - the
+functional path is separate and explicitly authorised, so autonomous exploration
+still cannot write. Asserted by the test suite.
+
+**5. Deterministic test data** — `functional/data.py`. `RUN_ID`
+(`QA-260826-110404-a231`), `{record}` / `{RUN_ID}` substitution in values *and*
+targets, an ownership ledger, cleanup that runs even after failure, and
+`output/functional-leftovers.json` for anything cleanup could not remove.
+
+**6. Failure evidence** — `functional/evidence.py`. Screenshot, Playwright trace
+(one chunk per test, kept only on failure), failed step/action/target, the locator
+used, expected vs actual, the page's real URL/title/visible heading, plus console
+messages, page errors and network failures (`requestfailed` and 4xx/5xx) sliced to
+the failing test.
+
+**7. Separate results** — `output/functional-results.json` and
+`reports/junit-functional.xml`, distinct from `junit-discovery.xml`. New exit
+code **6** for functional failure (0 ok, 2 args, 3 auth, 4 locator gate, 5 diff).
+
+**Milestone proven**: `tests/functional/germplasm_crud.json` runs
+create -> verify -> update (row-scoped Edit) -> delete (row-scoped Delete) ->
+verify deletion, against the mock, 17 steps, all green. The mock gained real CRUD
+(sessionStorage-backed) seeded with the same two rows it always had, so every
+existing discovery test sees an unchanged screen. Row action buttons keep generic
+labels on purpose - a record name in an `aria-label` would leak business data into
+the UI map.
+
+Also fixed: the evidence page-snapshot reported the first `h1` even when hidden,
+so a failure in the SPA claimed the heading was "PhenomeOne" (the hidden login
+view). It now reports the first *visible* heading.
+
+Deliberately **not** done in this phase, as instructed: geometry capture,
+automatic locator healing, Jenkinsfile, GUI button for functional runs.
 
 ---
 
@@ -151,7 +212,8 @@ Run everything three times from a clean state with:
 | `test_crawler.py` | 22 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_pipeline.py` | 50 | workflows, UI diff, codegen, JUnit, CI exit codes |
 | `test_recovery.py` | 15 | the four live-environment failures above |
-| `test_redteam.py` | 35 | adversarial surface: URL commands, popups, JS downloads, nested iframes, loops, ambiguity, unlabelled controls |
+| `test_functional.py` | 48 | the functional milestone: full CRUD lifecycle, both fail-closed guards, evidence, cleanup-after-failure, Safe Crawl untouched |
+| `test_redteam.py` | 36 | adversarial surface: URL commands, popups, JS downloads, nested iframes, loops, ambiguity, unlabelled controls |
 | `test_artifacts.py` | 34 | exact artifact set, schema keys, **generated Python executed against the mock**, leak scan |
 | `test_e2e_mock.py` | 30 | login → scan → training → outputs |
 | `test_login_variants.py` | 8 | slow form, iframe IdP form, landing page, no form |
@@ -186,10 +248,11 @@ It **moves** the folder (relocation test), so pass the current location.
    so expect *under*-exploration first. Add real labels to
    `_DANGEROUS_WORDS` / `_NAV_WORDS` in `crawler/safety.py`.
 3. **Confirm the long-path limit** on the target workstation (`C:\Tools\` is safe).
-4. **Stale build folders on this machine** — `C:\Users\itay-b\p1uid-build`
-   (broken, no exe), `p1uid-build-v2` (v1.0.0) and `p1uid-final` (v1.1.0) are all
-   superseded by `p1uid-final2`. Delete the first three to avoid clicking a dead
-   folder.
+4. **Stale build folders on this machine** (~2.2 GB) — `p1uid-build` (broken, no
+   exe), `p1uid-build-v2` (v1.0.0), `p1uid-final` (v1.1.0), `p1uid-final2`
+   (v1.1.1), `QA Build With Spaces` (empty) and `Another QA Folder (v2) & more`
+   (portability-test copy) are all superseded by **`p1uid-final3`**. Deleting
+   them avoids clicking a dead folder and frees ~2.2 GB.
 
 ### Portability status (verified 2026-08-25)
 Built into `C:\Users\itay-b\QA Build With Spaces\`, verified there (30/30),

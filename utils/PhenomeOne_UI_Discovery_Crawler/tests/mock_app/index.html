@@ -178,6 +178,75 @@ document.addEventListener("click", (e) => {
   }
 });
 
+/* ------------------------------------------- germplasm records (CRUD)
+   Real create/update/delete backed by sessionStorage, so a functional test can
+   create a record, verify it, change it, delete it and verify the deletion -
+   across navigations and reloads. Seeded with the same two rows the grid always
+   had, so discovery sees an unchanged screen.
+   Row action buttons keep GENERIC labels ("Edit"/"Delete"): putting a record
+   name in an aria-label would leak business data into the UI map. Tests address
+   a specific row by scoping to it (role=row, name=<record>). */
+const GERM_KEY = "p1uidGermplasms";
+const GERM_SEED = [
+  { name: "GP-001", type: "Inbred", created: "2025-01-04" },
+  { name: "GP-002", type: "Hybrid", created: "2025-01-06" }
+];
+
+function germplasms() {
+  try {
+    const raw = sessionStorage.getItem(GERM_KEY);
+    return raw ? JSON.parse(raw) : GERM_SEED.slice();
+  } catch (e) { return GERM_SEED.slice(); }
+}
+
+function setGermplasms(list) {
+  try { sessionStorage.setItem(GERM_KEY, JSON.stringify(list)); } catch (e) { }
+}
+
+const esc = (s) => String(s == null ? "" : s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+function germplasmRows() {
+  return germplasms().map(g => `<tr data-name="${esc(g.name)}">` +
+    `<td>${esc(g.name)}</td><td>${esc(g.type)}</td><td>${esc(g.created)}</td>` +
+    `<td><button data-action="edit-germplasm">Edit</button> ` +
+    `<button data-action="delete-germplasm">Delete</button></td></tr>`).join("");
+}
+
+let editingGermplasm = null;
+
+function openGermplasmDialog(name) {
+  editingGermplasm = name || null;
+  const rec = name ? germplasms().find(g => g.name === name) : null;
+  // The heading is part of the UI-state fingerprint, so edit is a distinct state.
+  document.getElementById("add-title").textContent = rec ? "Edit Germplasm" : "Add Germplasm";
+  $("#g-name").value = rec ? rec.name : "";
+  $("#g-type").value = rec ? rec.type : "Inbred";
+  $("#add-dialog").showModal();
+}
+
+function saveGermplasmFromDialog() {
+  const name = ($("#g-name").value || "").trim();
+  const type = $("#g-type").value;
+  if (!name) return;                         // nothing to save; dialog stays open
+  const list = germplasms();
+  if (editingGermplasm) {
+    const row = list.find(g => g.name === editingGermplasm);
+    if (row) { row.name = name; row.type = type; }
+  } else if (!list.some(g => g.name === name)) {
+    list.push({ name: name, type: type, created: new Date().toISOString().slice(0, 10) });
+  }
+  setGermplasms(list);
+  editingGermplasm = null;
+  $("#add-dialog").close();
+  renderPanel();
+}
+
+function deleteGermplasm(name) {
+  setGermplasms(germplasms().filter(g => g.name !== name));
+  renderPanel();
+}
+
 /* ------------------------------------------------------ rendering */
 function render(view) {
   if (view === "home") {
@@ -230,10 +299,7 @@ function renderPanel() {
       </div>
       <table role="grid" aria-label="Germplasms">
         <thead><tr><th>Name</th><th>Type</th><th>Created</th><th>Actions</th></tr></thead>
-        <tbody>
-          <tr><td>GP-001</td><td>Inbred</td><td>2025-01-04</td><td><button>Edit</button> <button>Delete</button></td></tr>
-          <tr><td>GP-002</td><td>Hybrid</td><td>2025-01-06</td><td><button>Edit</button> <button>Delete</button></td></tr>
-        </tbody>
+        <tbody>${germplasmRows()}</tbody>
       </table>
       <nav aria-label="Pagination"><button aria-label="Previous page">Prev</button>
         <button aria-label="Next page">Next</button></nav>`;
@@ -377,9 +443,14 @@ if (new URLSearchParams(location.search).has("churn")) {
 }
 
 document.addEventListener("click", (e) => {
-  if (e.target.closest("#add-germplasm")) $("#add-dialog").showModal();
+  if (e.target.closest("#add-germplasm")) openGermplasmDialog(null);
   if (e.target.closest("#dlg-cancel") || e.target.closest("#dlg-close")) $("#add-dialog").close();
-  if (e.target.closest("[data-testid=germplasm-save]")) $("#add-dialog").close();
+  if (e.target.closest("[data-testid=germplasm-save]")) saveGermplasmFromDialog();
+
+  const editBtn = e.target.closest("[data-action=edit-germplasm]");
+  if (editBtn) openGermplasmDialog(editBtn.closest("tr").dataset.name);
+  const delBtn = e.target.closest("[data-action=delete-germplasm]");
+  if (delBtn) deleteGermplasm(delBtn.closest("tr").dataset.name);
 
   const ab = e.target.closest("#actions-btn");
   if (ab) {

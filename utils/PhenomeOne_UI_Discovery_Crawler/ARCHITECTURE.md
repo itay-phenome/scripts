@@ -32,15 +32,26 @@ src/p1uid/
   store/uimap.py          incremental merge, locator history, UNSTABLE detection
   navigation/graph.py     nodes/edges + readable spanning tree
   training/trainer.py     correlates observed actions with observed state changes
+  training/workflows.py   named workflow recording
   discovery/stability.py  waitStable(): settle detection for autonomous discovery
   crawler/safety.py       SAFE_NAVIGATION / CONDITIONAL / DANGEROUS / UNKNOWN
+  crawler/bfs.py          Safe Crawl: budgeted, read-only autonomous exploration
+  functional/steps.py     declarative test model (navigate/click/fill/select/assert)
+  functional/runner.py    executes tests; fails closed on destructive actions
+  functional/data.py      RUN_ID, test-owned records, cleanup ledger
+  functional/evidence.py  screenshot, trace, console/page/network capture
+  functional/results.py   functional PASS/FAIL results
+  diff.py                 UI diff between two maps
+  codegen.py              Playwright asset generation
   reporting/html_report.py self-contained HTML report
+  reporting/junit.py      JUnit for discovery health (weak/unstable locators)
+  reporting/junit_functional.py JUnit for functional results
   security/               dpapi.py, session_store.py
 ```
 
 The GUI is a thin shell: it submits named operations to the `Engine` and renders
 events off a `queue.Queue`. `Engine` is fully usable without it — that is how the
-CLI and every test drives it, and how Safe Crawl / test generation would later.
+CLI, Safe Crawl, test generation and the functional runner all drive it.
 
 ## Threading
 
@@ -140,6 +151,39 @@ form counts as plain navigation.
 been no mutations *and* no signature change for a quiet window. `networkidle` is
 avoided deliberately: a SaaS page that polls or holds a socket open never
 reaches it, and a page is usually settled long before its background traffic is.
+
+## Two directories, deliberately
+
+`INSTALL_DIR` is where the executable and the bundled browser live. `APP_DIR` is
+where output/config/logs/sessions are written, and `P1UID_HOME` overrides only
+that. They were the same variable until Phase 1, which meant pointing outputs at
+a CI workspace silently made Chromium unfindable - Playwright fell back to a
+"development mode" cache that does not exist on a clean machine.
+
+## Functional testing (Phase 1)
+
+Discovery and functional testing are separate layers with one shared substrate:
+
+```
+             discovery                         functional QA
+  scanner -> locator/{generator,validator} -> functional/runner
+             state/fingerprint                (navigate/click/fill/select/assert)
+             store/uimap  ------------------>  target resolution
+             navigation/graph ------------->   route resolution
+```
+
+The runner performs actions and assertions; it does not invent selectors. Every
+target becomes a `locator.generator.Locator` that `locator.validator.build()`
+resolves, and a route comes from `navigation.graph.shortest_path()` over edges
+the tool actually observed. So a functional test inherits the confidence,
+history and validation of the discovery layer instead of duplicating it.
+
+**Destructive actions fail closed.** A create/update/delete step must declare
+`destructive: true`, and the runner refuses to click unless the current state
+matches the step's declared state, the target resolves to exactly one element,
+and that element is visible and enabled. This is a separate, explicitly
+authorised path: `crawler/safety.py` is untouched and Safe Crawl remains
+read-only, so autonomous exploration can never perform a write.
 
 ## Safety
 

@@ -473,6 +473,39 @@ class Engine:
         self.emit(type="crawl", active=False, summary=result.to_json(),
                   counts=self.store.counts())
 
+    # --------------------------------------------------- functional testing
+    async def op_run_functional(self, suite: Any, run_id: str | None = None) -> Any:
+        """Execute a declarative functional suite against the live application.
+
+        Discovery must have run first: targets and navigation come from the
+        existing UI map and navigation graph. Safe Crawl is not involved.
+        """
+        from ..functional.runner import FunctionalRunner
+        from ..reporting import junit_functional
+
+        await self.ensure_browser()
+        if self.trainer is not None:
+            self.emit(type="error", op="functional", msg="stop training before running tests")
+            return None
+        if self.page is None or self.page.is_closed():
+            self.emit(type="error", op="functional", msg="no open page")
+            return None
+        if not self.store.data.get("states"):
+            self.emit(type="error", op="functional",
+                      msg="the UI map is empty - run discovery before functional tests")
+            return None
+
+        runner = FunctionalRunner(self, self.store, run_id=run_id)
+        self.emit(type="functional", active=True, suite=suite.name, tests=len(suite.tests))
+        result = await runner.run_suite(suite)
+        result.write(paths.FUNCTIONAL_RESULTS_FILE)
+        junit_functional.write(result, paths.FUNCTIONAL_JUNIT_FILE)
+        # The UI map may have gained states while navigating; persist it.
+        self.store.save()
+        self.emit(type="functional", active=False, summary=result.to_json()["totals"],
+                  ok=result.ok, leftovers=len(result.leftovers))
+        return result
+
     # -------------------------------------------------------------- output
     def write_outputs(self, training_summary: dict[str, Any] | None = None) -> None:
         paths.ensure_dirs()

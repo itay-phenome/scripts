@@ -1,0 +1,170 @@
+{
+  "name": "germplasm-crud",
+  "baseState": "research-group-germplasms",
+  "tests": [
+    {
+      "name": "Germplasm create-verify-update-delete",
+      "level": "critical",
+      "description": "Full record lifecycle through the UI: create, verify, change, delete, verify deletion. Every write is declared destructive and guarded by the expected UI state.",
+      "tags": ["crud", "germplasm"],
+      "steps": [
+        {
+          "action": "navigate",
+          "toState": "research-group-germplasms",
+          "description": "reach the Germplasms grid using the learned navigation graph"
+        },
+        {
+          "action": "assert",
+          "expect": { "state": "research-group-germplasms" },
+          "description": "we are on the Germplasms grid"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "{record}", "exact": false },
+          "expect": { "count": 0 },
+          "description": "the record does not exist yet"
+        },
+
+        {
+          "action": "click",
+          "target": { "testid": "germplasm-add" },
+          "state": "research-group-germplasms",
+          "description": "open the Add Germplasm dialog"
+        },
+        {
+          "action": "assert",
+          "expect": { "state": "research-group-germplasms-dialog-add-germplasm" },
+          "description": "the Add Germplasm dialog is open"
+        },
+        {
+          "action": "fill",
+          "target": { "role": "textbox", "name": "Name" },
+          "value": "{record}",
+          "description": "enter the record name"
+        },
+        {
+          "action": "select",
+          "target": { "role": "combobox", "name": "Type" },
+          "value": "Hybrid",
+          "description": "choose type Hybrid"
+        },
+        {
+          "action": "click",
+          "target": { "testid": "germplasm-save" },
+          "state": "research-group-germplasms-dialog-add-germplasm",
+          "destructive": true,
+          "creates": "{record}",
+          "description": "SAVE the new germplasm (create)"
+        },
+
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "{record}", "exact": false },
+          "expect": { "visible": true },
+          "description": "the new record appears in the grid"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "{record}", "exact": false },
+          "expect": { "textContains": "Hybrid" },
+          "description": "the record shows the type we chose"
+        },
+
+        {
+          "action": "click",
+          "target": {
+            "role": "button",
+            "name": "Edit",
+            "within": { "role": "row", "name": "{record}", "exact": false }
+          },
+          "state": "research-group-germplasms",
+          "description": "open the record for editing (row-scoped)"
+        },
+        {
+          "action": "select",
+          "target": { "role": "combobox", "name": "Type" },
+          "value": "Inbred",
+          "description": "change the type to Inbred"
+        },
+        {
+          "action": "click",
+          "target": { "testid": "germplasm-save" },
+          "destructive": true,
+          "description": "SAVE the change (update)"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "{record}", "exact": false },
+          "expect": { "textContains": "Inbred" },
+          "description": "the change was persisted"
+        },
+
+        {
+          "action": "click",
+          "target": {
+            "role": "button",
+            "name": "Delete",
+            "within": { "role": "row", "name": "{record}", "exact": false }
+          },
+          "state": "research-group-germplasms",
+          "destructive": true,
+          "removes": "{record}",
+          "description": "DELETE the record (row-scoped)"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "{record}", "exact": false },
+          "expect": { "count": 0 },
+          "description": "the record is gone from the grid"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "GP-001", "exact": false },
+          "expect": { "visible": true },
+          "description": "pre-existing records were not touched"
+        }
+      ],
+      "cleanup": [
+        {
+          "action": "navigate",
+          "toState": "research-group-germplasms",
+          "optional": true,
+          "description": "return to the grid to clean up"
+        },
+        {
+          "action": "click",
+          "target": {
+            "role": "button",
+            "name": "Delete",
+            "within": { "role": "row", "name": "{record}", "exact": false }
+          },
+          "destructive": true,
+          "optional": true,
+          "removes": "{record}",
+          "description": "remove the test record if it still exists"
+        }
+      ]
+    },
+    {
+      "name": "Germplasms grid is reachable",
+      "level": "smoke",
+      "description": "Cheapest possible check that the app still renders its main grid.",
+      "tags": ["smoke"],
+      "steps": [
+        { "action": "navigate", "toState": "research-group-germplasms" },
+        {
+          "action": "assert",
+          "target": { "testid": "germplasm-add" },
+          "expect": { "visible": true },
+          "description": "the Add Germplasm control is present"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "grid", "name": "Germplasms" },
+          "expect": { "visible": true },
+          "description": "the Germplasms grid is present"
+        }
+      ]
+    }
+  ]
+}

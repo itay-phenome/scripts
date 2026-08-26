@@ -35,6 +35,7 @@ SUITES = [
     "test_redteam.py",
     "test_pipeline.py",
     "test_recovery.py",
+    "test_functional.py",
     "test_e2e_mock.py",
     "test_login_variants.py",
     "test_gui_smoke.py",

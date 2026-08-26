@@ -89,3 +89,43 @@ def tree_lines(nodes: list[dict[str, Any]], edges: list[dict[str, Any]]) -> list
             lines.append(label_of(n["id"]))
             walk(n["id"], "", 0)
     return lines
+
+def shortest_path(store: Any, to_state: str, from_state: str | None = None) -> list[dict[str, Any]] | None:
+    """Learned click path that reaches `to_state`, or None if unreachable.
+
+    Breadth-first over the navigation the tool actually observed, so every step
+    carries the locator that was validated when the edge was discovered. Used by
+    the functional runner: tests navigate by state id and the graph supplies the
+    clicks, which is why a test never hard-codes a route.
+    """
+    edges = list((store.data.get("navigation") or {}).values())
+    if to_state == from_state:
+        return []
+    adj: dict[str, list[dict[str, Any]]] = {}
+    for e in edges:
+        adj.setdefault(e["from"], []).append(e)
+
+    starts = [from_state] if from_state else _roots(
+        [{"id": sid, "route": st.get("route")} for sid, st in
+         (store.data.get("states") or {}).items()],
+        [{"from": e["from"], "to": e["to"], "action": e.get("action")} for e in edges])
+    seen = set(starts)
+    queue: list[tuple[str, list[dict[str, Any]]]] = [(s, []) for s in starts]
+    while queue:
+        node, path = queue.pop(0)
+        if node == to_state:
+            return path
+        for e in sorted(adj.get(node, []), key=lambda x: str((x.get("action") or {}).get("name"))):
+            dest = e["to"]
+            if dest in seen:
+                continue
+            seen.add(dest)
+            act = e.get("action") or {}
+            queue.append((dest, path + [{
+                "from": node, "to": dest,
+                "action": act.get("name") or act.get("type") or "?",
+                "type": act.get("type"),
+                "locator": act.get("locator"),
+                "locatorSpec": act.get("locatorSpec"),
+            }]))
+    return None

@@ -75,6 +75,21 @@ def main() -> int:
             print(f"\nRED TEAM  target={url}\n")
             engine.call(lambda: engine.open_url(url), timeout=120)
 
+            # The page nests an iframe inside an iframe. `open_url` only waits for
+            # the top document, so classifying immediately can race the inner
+            # frames and report their controls as missing. Wait for the deepest
+            # one to attach - a precondition of the test, not a tolerance.
+            async def wait_for_nested_frames() -> int:
+                inner = (engine.page
+                         .frame_locator("iframe[title='Outer widget']")
+                         .frame_locator("iframe[title='Inner widget']"))
+                await inner.get_by_test_id("if-purge").wait_for(state="attached", timeout=15000)
+                return len(engine.page.frames)
+
+            frames = engine.call(lambda: wait_for_nested_frames(), timeout=60)
+            check("nested frames finished loading before classification", frames >= 3,
+                  f"{frames} frames attached")
+
             # ---------- static classification of every trap -----------------
             async def classify_all_frames():
                 out = []
