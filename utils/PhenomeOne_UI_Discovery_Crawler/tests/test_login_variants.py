@@ -103,7 +103,31 @@ def main() -> int:
             check("diagnostics report the page structure",
                   "frame[0]" in diag and "inputs=" in diag)
 
-            print("\n[5] scanning still works after each of those logins")
+            # Live failure (PhenomeOne, 2026-08-26): the password field became
+            # visible 18.1 s after load while #usernameLoginInput was still not
+            # visible, so a fillable form was refused with "no username field
+            # candidate found". The analysis must let the form finish rendering.
+            print("\n[5] username field appears AFTER the password field")
+            ok = run_case(engine, base + "?userlate=2500", root)
+            check("a late-rendering username field no longer defeats login", ok)
+            log_text = (HOME / "logs" / "discovery.log").read_text(encoding="utf-8",
+                                                                  errors="replace")
+            check("the wait was reported, not silent",
+                  "not visible yet" in log_text, "no settle message logged")
+            check("and the form was accepted once it rendered",
+                  "finished rendering" in log_text, "no resolution message logged")
+
+            print("\n[6] a username field that NEVER appears is still refused")
+            ok = run_case(engine, base + "?userlate=600000", root)
+            check("fails closed rather than guessing", not ok)
+            fields = engine.call(
+                lambda: auth_login.read_fields(engine.page.main_frame), timeout=60)
+            desc = auth_login.describe_fields(fields)
+            print("\n".join("      " + l for l in desc.splitlines()[:5]))
+            check("the diagnostic says WHY the field is invisible",
+                  "NOT-VISIBLE(" in desc and "display:none" in desc, desc[:200])
+
+            print("\n[7] scanning still works after each of those logins")
             engine.call(lambda: engine.op_scan(), timeout=180)
             check("scan produced elements", engine.store.counts()["elements"] > 3,
                   f"{engine.store.counts()['elements']} elements")

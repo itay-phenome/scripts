@@ -69,6 +69,8 @@ class Engine:
         self._observe_script_added = False
         self.crawl_active = False
         self._cancel_manual = False
+        self._manual_gen = 0            # bumped per Manual Login press; older waits stand down
+        self._manual_active = False     # a manual-login wait is in progress right now
 
     # ------------------------------------------------------------ plumbing
     def emit(self, **payload: Any) -> None:
@@ -295,10 +297,17 @@ class Engine:
             self.emit(type="status", auth="No login form found - use Manual Login")
             return
 
-        plan = auth_login.analyse(fields)
+        # A form found the instant its password field appears may still be
+        # rendering; give a strong-but-invisible username field time to show up
+        # before judging it. Refuses exactly as before if it never does.
+        plan, fields = await auth_login.analyse_when_ready(frame)
         log.info("Login form analysis: confidence=%s (%s)", plan.confidence, "; ".join(plan.reasons))
         if not plan.usable:
             log.error("Automatic login refused - confidence too low. Use Manual Login.")
+            # What was actually on the page, so the refusal can be diagnosed from
+            # one run instead of guessed at. Field metadata only - never values.
+            log.error("Login form fields (metadata only, no values):\n%s",
+                      auth_login.describe_fields(fields))
             self.emit(type="status", auth="Automatic login not possible - use Manual Login")
             return
 
@@ -315,14 +324,50 @@ class Engine:
         self.emit(type="status", auth="Connected")
 
     async def op_manual_login(self, url: str, timeout_s: int = 600) -> None:
-        await self.open_url(url)
+        # Pressing Manual Login again while a wait is in progress used to start a
+        # second attempt that re-navigated - destroying the very form the first
+        # attempt was waiting for - and the first attempt then reported "no
+        # sign-in form appeared" about a page that no longer existed. A new
+        # attempt now supersedes the old one, and does not reload the page it is
+        # already waiting on: a reload restarts the application's own render,
+        # which on a slow SPA is exactly how a form that was about to appear is
+        # lost.
+        self._manual_gen += 1
+        gen = self._manual_gen
+        superseded = lambda: gen != self._manual_gen           # noqa: E731
+
+        if self._manual_active:
+            # The older wait stands down on its own by comparing generations, so
+            # there is nothing to reload and nothing to cancel by flag.
+            log.info("Superseding the Manual Login attempt already in progress; "
+                     "not reloading the page")
+        else:
+            await self.open_url(url)
+        if superseded():
+            return
+
         self._cancel_manual = False
+        self._manual_active = True
+        try:
+            await self._manual_login_wait(timeout_s, gen)
+        finally:
+            # Only the newest attempt owns the flag; an older one standing down
+            # must not clear it out from under its successor.
+            if not superseded():
+                self._manual_active = False
+
+    async def _manual_login_wait(self, timeout_s: int, gen: int) -> None:
+        """The waiting half of Manual Login. Returns silently if superseded."""
+        superseded = lambda: gen != self._manual_gen            # noqa: E731
         self.emit(type="status", auth="Waiting for the sign-in form...")
 
         # A password field must be SEEN before its absence can mean "signed in".
         # Without this, a slow SPA that has not yet rendered its login form
         # reports success one second after the page loads.
         frame, _fields = await auth_login.find_login_form(self.page, timeout_s=self.login_wait_s)
+        if superseded():
+            log.info("A newer Manual Login attempt superseded this wait for the form")
+            return
         if frame is None:
             if await auth_login.looks_authenticated(self.page):
                 self.authenticated = True
@@ -342,8 +387,12 @@ class Engine:
                  "(waiting up to %d s)", timeout_s)
         self.emit(type="status", auth="Waiting for you to sign in...")
         ok = await auth_login.wait_until_no_password(
-            self.page, timeout_s, should_cancel=lambda: self._cancel_manual)
+            self.page, timeout_s,
+            should_cancel=lambda: self._cancel_manual or superseded())
 
+        if superseded():
+            log.info("A newer Manual Login attempt superseded this wait for sign-in")
+            return
         if self.page is None or self.page.is_closed():
             log.warning("The browser page was closed before sign-in completed")
             self.emit(type="status", auth="Browser closed before sign-in")

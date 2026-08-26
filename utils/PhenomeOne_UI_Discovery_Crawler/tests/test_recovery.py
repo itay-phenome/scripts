@@ -185,6 +185,80 @@ def main() -> int:
             check("no spurious 'New browser tab detected' at startup",
                   "New browser tab detected" not in log_text,
                   "found the popup message in the log")
+
+            # Live-log failure, 2026-08-26: pressing Manual Login twice while the
+            # first wait was running made the second press re-navigate, which
+            # destroyed the form the first press was waiting for; the first press
+            # then reported "No sign-in form appeared" about a page that no longer
+            # existed. A second press must supersede, not sabotage.
+            print("\n[7] pressing Manual Login twice must not sabotage the first wait")
+            reset_session(engine, root)
+            engine.authenticated = False
+            drain(events)
+            log_before = (HOME / "logs" / "discovery.log").stat().st_size
+
+            # The form takes 4 s to render; the first press is mid-wait when the
+            # second arrives.
+            # The second press lands at ~3 s. That timing is deliberate: with the
+            # old behaviour the reload would push the form out to ~7 s, past the
+            # 6 s login_wait_s, so the first attempt would log its stale verdict -
+            # which is exactly what this section asserts must not happen.
+            slow = base + "?delay=4000"
+            engine.submit(lambda: engine.op_manual_login(slow, timeout_s=45), op="manual_login")
+            time.sleep(3.0)
+            check("a manual-login wait is marked active", engine._manual_active)
+            gen_before = engine._manual_gen
+            engine.submit(lambda: engine.op_manual_login(slow, timeout_s=45), op="manual_login")
+            time.sleep(2.0)
+            check("the second press superseded the first",
+                  engine._manual_gen > gen_before, f"{gen_before} -> {engine._manual_gen}")
+
+            async def human_signs_in_again() -> None:
+                await engine.page.wait_for_selector("#pw", timeout=30000)
+                await engine.page.fill("#user", "tester@example.com")
+                await engine.page.fill("#pw", PASSWORD)
+                await engine.page.get_by_test_id("login-submit").click()
+
+            engine.call(lambda: human_signs_in_again(), timeout=120)
+            deadline = time.time() + 60
+            while time.time() < deadline and not engine.authenticated:
+                time.sleep(0.5)
+            check("the surviving attempt still completes the sign-in", engine.authenticated)
+
+            new_log = (HOME / "logs" / "discovery.log").read_text(
+                encoding="utf-8", errors="replace")[log_before:]
+            check("the superseded wait reported no false 'no sign-in form'",
+                  "No sign-in form appeared within" not in new_log,
+                  "the stale verdict was logged anyway")
+            check("the second press did not reload the page",
+                  "not reloading the page" in new_log, "no supersede message in the log")
+            check("the wait flag is released once the attempt finishes",
+                  not engine._manual_active)
+
+            # Control: prove the in-progress guard is what prevents the reload.
+            # Clearing the flag makes op_manual_login take the pre-fix branch, so
+            # a second press navigates again - the sabotage this section exists
+            # to stop. If this check fails, the assertions above are toothless.
+            reset_session(engine, root)
+            engine.authenticated = False
+            mark = (HOME / "logs" / "discovery.log").stat().st_size
+            engine.submit(lambda: engine.op_manual_login(slow, timeout_s=20), op="manual_login")
+            time.sleep(3.0)
+            engine._manual_active = False           # simulate the pre-fix state
+            engine.submit(lambda: engine.op_manual_login(slow, timeout_s=20), op="manual_login")
+            time.sleep(3.0)
+            control = (HOME / "logs" / "discovery.log").read_text(
+                encoding="utf-8", errors="replace")[mark:]
+            check("without the guard the page IS reloaded (so the guard is load-bearing)",
+                  "not reloading the page" not in control and "Opening URL" in control,
+                  control[-200:].replace("\n", " | "))
+            # Drain the orphaned waits before teardown, or asyncio complains that
+            # a pending task was destroyed.
+            engine._cancel_manual = True
+            drain_deadline = time.time() + 30
+            while time.time() < drain_deadline and engine._manual_active:
+                time.sleep(0.5)
+            check("the control's waits drained before teardown", not engine._manual_active)
         finally:
             engine.shutdown_blocking()
 

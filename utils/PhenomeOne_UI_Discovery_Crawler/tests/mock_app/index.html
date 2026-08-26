@@ -82,11 +82,20 @@ let activeTab = "Overview";
 const AUTODRIVE = location.search.includes("autodrive");
 const PARAMS = new URLSearchParams(location.search);
 const BOOT_DELAY = parseInt(PARAMS.get("delay") || "0", 10);
+const USER_LATE = parseInt(PARAMS.get("userlate") || "0", 10);
 const LANDING = PARAMS.has("landing");
 
 function showLoginForm() {
   document.getElementById("landing-view").classList.add("hidden");
   document.getElementById("login-view").style.display = "";
+  // ?userlate=N reproduces the real PhenomeOne login page (2026-08-26): the
+  // password field is visible while the username input is still not, so a form
+  // analysed at that instant looks like it has no username field at all.
+  if (USER_LATE > 0) {
+    const u = document.getElementById("user");
+    u.style.display = "none";
+    setTimeout(() => { u.style.display = ""; }, USER_LATE);
+  }
 }
 
 function enterApp() {

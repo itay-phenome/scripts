@@ -5,11 +5,11 @@
 | | |
 |---|---|
 | Last updated | 2026-08-26 |
-| Version | 1.3.0 (discovery + autonomous crawl + functional QA engine + **normalised dialog-state identity**) |
+| Version | 1.3.2 (discovery + autonomous crawl + functional QA engine + normalised dialog-state identity + **login-timing fixes from the real app**) |
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed) |
-| Build output | `C:\Users\itay-b\p1uid-phase2a\PhenomeOne-UI-Discovery\` (555 MB, v1.3.0) |
+| Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (555 MB, v1.3.2, git-ignored) — built in `C:\Users\itay-b\p1uid-build`, then copied. See §5 |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **506/506 passing** — 476 source (12 suites, 3 consecutive clean runs) + 30 packaged |
+| Tests | **530/530 passing** — 500 source (12 suites) + 30 packaged |
 | Blocked on | **EKS-LAB / real PhenomeOne validation — no credentials in this session** |
 | First real run | 2026-08-24 against `eksdemo-helm.phenome-networks.com`: exposed 4 bugs, all fixed (see §2.7) |
 
@@ -284,6 +284,63 @@ idempotence, all-volatile, stacked-dialog and route-untouched guards) and
 `test_hardgrid.py` section 5, which now proves in a live browser that editing two
 records yields **one** state id while Add remains its own.
 
+### Phase 11 — Login fixes from the second real PhenomeOne run (2026-08-26)
+
+Two runs against `eksdemo-helm.phenome-networks.com` produced two defects. Both
+were **timing** bugs, not heuristic gaps — the login vocabulary was never touched.
+
+**1. Manual Login double-press sabotaged itself.** Pressing Manual Login again
+during the wait started a second attempt that re-navigated, destroying the form
+the first attempt was waiting for; the first then reported "No sign-in form
+appeared within 20 s" about a page that no longer existed. The live log made the
+timing unambiguous: navigation at 13:41:50, second press 13:42:08, stale verdict
+13:42:10 — exactly 20 s after the *first* navigation.
+
+`op_manual_login` now carries a generation number. A new press increments it and
+older waits stand down silently instead of publishing a verdict; when a wait is
+already in progress the new press does **not** re-navigate. The waiting half
+moved to `_manual_login_wait()` so one `finally` releases the in-progress flag
+across both phases — form discovery *and* the 600 s sign-in wait. Covering only
+the first phase would have left a second press during SSO still reloading.
+
+**2. A late-rendering username field defeated automatic login.** The refusal said
+only "no username field candidate found". The new diagnostics answered it in one
+run:
+
+```
+[0] type=text placeholder='User' id='usernameLoginInput' NOT-VISIBLE usernameScore=85
+[1] type=password placeholder='Enter password' id='passwordLoginInput' visible
+```
+
+The field existed and scored 85 — enough for HIGH confidence. It simply was not
+visible yet: `find_login_form` returns the instant a *password* field appears, and
+on this app the form takes ~18 s to render, so the snapshot caught it half-built.
+
+`analyse_when_ready()` now re-reads and re-analyses while there is something
+specific to wait for — an invisible, enabled, strongly-scoring (≥85) username
+candidate — for up to 10 s. **The gate is not loosened, only given time:** if the
+field never becomes visible the original refusal stands, and the wait ends
+immediately when nothing is pending. `FIELDS_JS` also reports *why* an element is
+invisible (`NOT-VISIBLE(self display:none)`, `NOT-VISIBLE(div#panel opacity:0)`,
+`zero-size 0x0`), which is the difference between "wait" and "give up".
+
+Diagnostics on refusal now list every input's type, label, placeholder,
+autocomplete, name, id, testid, visibility with cause, disabled state, form
+grouping, and **its username score with the reason** — metadata only; `FIELDS_JS`
+never reads a value, asserted by test.
+
+Cover: `test_recovery.py` §7 (6 checks incl. a **control** that clears the
+in-progress flag to force the pre-fix path and asserts the reload then *does*
+happen — without it the other assertions could pass vacuously) and
+`test_login_variants.py` §5–6 via the new `?userlate=N` mock parameter, which
+reproduces the PhenomeOne shape exactly: password visible, username still
+`display:none`. Both the "appears late" and "never appears" outcomes are pinned.
+
+**Still not validated against the real app:** whether automatic login now
+completes there. The mock reproduces the *shape* of the failure; only a real run
+proves the fix. Manual Login was never the blocked path and remains the
+recommended route for the first real discovery run.
+
 ---
 
 ## 3. Test status
@@ -295,20 +352,20 @@ Run everything three times from a clean state with:
 
 | Suite | Checks | Covers |
 |---|---|---|
-| `test_units.py` | 84 | fingerprints incl. **dialog-title normalisation (40)**, locators, store merge, redaction, login analysis, nav tree, report |
+| `test_units.py` | 95 | fingerprints incl. **dialog-title normalisation (40)**, locators, store merge, redaction, login analysis, nav tree, report |
 | `test_safety.py` | 103 | classifier: 69 unit + 34 live on the hardened mock |
 | `test_crawler.py` | 22 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_pipeline.py` | 50 | workflows, UI diff, codegen, JUnit, CI exit codes |
-| `test_recovery.py` | 15 | the four live-environment failures above |
+| `test_recovery.py` | 23 | the live-environment failures above, incl. the **Manual Login double-press race** |
 | `test_hardgrid.py` | 25 | component-framework UI: portaled combobox, virtualised grid, volatile dialog titles |
 | `test_functional.py` | 48 | the functional milestone: full CRUD lifecycle, both fail-closed guards, evidence, cleanup-after-failure, Safe Crawl untouched |
 | `test_redteam.py` | 36 | adversarial surface: URL commands, popups, JS downloads, nested iframes, loops, ambiguity, unlabelled controls |
 | `test_artifacts.py` | 34 | exact artifact set, schema keys, **generated Python executed against the mock**, leak scan |
 | `test_e2e_mock.py` | 30 | login → scan → training → outputs |
-| `test_login_variants.py` | 8 | slow form, iframe IdP form, landing page, no form |
+| `test_login_variants.py` | 13 | slow form, iframe IdP form, landing page, no form, **late-rendering username field** (appears / never appears) |
 | `test_gui_smoke.py` | 21 | real Tk window driving the real browser |
 | `test_packaged.py` | 30 | relocated frozen build in a stripped environment |
-| **Total** | **506** | 476 source + 30 packaged, all passing as of this update |
+| **Total** | **530** | 500 source + 30 packaged, all passing as of this update |
 
 `test_packaged.py` takes a path: `python tests/test_packaged.py <dist>/PhenomeOne-UI-Discovery`.
 It **moves** the folder (relocation test), so pass the current location.
@@ -369,22 +426,38 @@ Exit 0, every artifact written, no secret leaked.
 
 ## 5. Build path
 
+**One temp build folder, then copy into `dist/`.** Decided 2026-08-26: a new
+`p1uid-<version>` folder per build meant the user's shortcut broke on every
+rebuild, and nine abandoned folders had accumulated (4.9 GB, since deleted).
+`dist/` is git-ignored in both this project and the repo root, so the copy can
+never be committed.
+
 ```bat
 :: from the source directory
 python -m pip install -r requirements.txt
 python -m playwright install chromium
 
-:: build OUTSIDE OneDrive and keep the path short (Chromium + 260-char limit)
-python build_portable.py --clean --out C:\Users\itay-b\p1uid-next
-python tests\test_packaged.py C:\Users\itay-b\p1uid-next\PhenomeOne-UI-Discovery
+:: 1. BUILD into the single reusable temp folder - short path, outside OneDrive
+python build_portable.py --clean --out C:\Users\itay-b\p1uid-build
+
+:: 2. VERIFY there (it relocates the folder, so verify before copying)
+python tests\test_packaged.py C:\Users\itay-b\p1uid-build\PhenomeOne-UI-Discovery
+
+:: 3. COPY the verified build over the stable location the user launches
+robocopy C:\Users\itay-b\p1uid-build\relocated-*\PhenomeOne-UI-Discovery ^
+         dist\PhenomeOne-UI-Discovery /E /PURGE /MT:8
 ```
 
-The packaged test relocates the folder and leaves it at
-`<out>\relocated-<HHMMSS>\PhenomeOne-UI-Discovery`; move it back and wipe
-`output/ reports/ logs/ config/ sessions/` before handing it over.
+Wipe `output/ reports/ logs/` from the copy afterwards - the packaged test fills
+them with mock-app data, and handing that over looks like a real run.
 
-**Do not build into the OneDrive-synced repo** — 579 MB would sync, and the deep
-path can stop Chromium from launching.
+**Build in the temp folder, never directly into `dist/`.** PyInstaller writing
+579 MB inside a OneDrive-synced tree invites file locks mid-write and a corrupt
+distribution; copying a finished tree in is safe. The deep OneDrive path also
+eats into the 260-character limit that Chromium's nested files can hit.
+
+The user launches:
+`dist\PhenomeOne-UI-Discovery\PhenomeOne-UI-Discovery.exe`
 
 ### Gotchas that cost time before
 * PyInstaller spec lists `hiddenimports` explicitly — **add any new module there**.

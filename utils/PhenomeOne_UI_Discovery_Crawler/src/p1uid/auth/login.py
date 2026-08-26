@@ -44,6 +44,26 @@ FIELDS_JS = r"""
     const w = el.closest('label'); if (w) return norm(w.textContent);
     return '';
   };
+  // Why is this element not visible? "NOT-VISIBLE" alone cannot be acted on;
+  // knowing it is a zero-height wrapper mid-animation vs. display:none on an
+  // ancestor is the difference between waiting and giving up.
+  const whyHidden = (el) => {
+    for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
+      const s = getComputedStyle(e);
+      const why = s.display === 'none' ? 'display:none'
+                : s.visibility === 'hidden' ? 'visibility:hidden'
+                : parseFloat(s.opacity || '1') === 0 ? 'opacity:0' : '';
+      if (why) {
+        const who = e === el ? 'self' : e.tagName.toLowerCase() + (e.id ? '#' + e.id : '');
+        return who + ' ' + why;
+      }
+    }
+    const r = el.getBoundingClientRect();
+    if (r.width <= 1 || r.height <= 1) {
+      return 'zero-size ' + Math.round(r.width) + 'x' + Math.round(r.height);
+    }
+    return 'off-screen or covered';
+  };
   const inputs = Array.from(document.querySelectorAll('input')).map((el, i) => ({
     index: i,
     type: (el.getAttribute('type') || 'text').toLowerCase(),
@@ -54,6 +74,7 @@ FIELDS_JS = r"""
     label: labelOf(el),
     testid: norm(el.getAttribute('data-testid') || el.getAttribute('data-test') || el.getAttribute('data-cy')),
     visible: vis(el),
+    hiddenBy: vis(el) ? '' : whyHidden(el),
     disabled: !!el.disabled || el.getAttribute('aria-disabled') === 'true',
     formIndex: el.form ? Array.from(document.forms).indexOf(el.form) : -1
   }));
@@ -177,6 +198,97 @@ def analyse(fields: dict[str, Any]) -> LoginPlan:
         plan.confidence = MEDIUM
         plan.reasons.append("username field chosen by position, not by label/type")
     return plan
+
+
+STRONG_USERNAME = 85          # score at which a candidate is worth waiting for
+
+
+async def analyse_when_ready(frame: Any, settle_s: float = 10.0) -> tuple[LoginPlan, dict[str, Any]]:
+    """Analyse the form, giving a still-rendering field time to appear.
+
+    Live failure (PhenomeOne, 2026-08-26): the password field became visible
+    18.1 s after load, and at that instant `#usernameLoginInput` - a field that
+    scores 85 - was still not visible. The form was therefore refused as having
+    "no username field candidate", even though a human could fill it a moment
+    later. `find_login_form` returns as soon as a *password* field appears, so
+    the snapshot can catch a half-rendered form.
+
+    This waits only while there is something specific to wait for: an invisible,
+    enabled, strongly-scoring username candidate. If it never becomes visible the
+    original refusal stands - the gate is not loosened, only given time.
+    """
+    fields = await read_fields(frame)
+    plan = analyse(fields)
+    if plan.usable:
+        return plan, fields
+
+    started = time.monotonic()
+    deadline = started + settle_s
+    logged = False
+    while time.monotonic() < deadline:
+        pending = [f for f in fields.get("inputs", [])
+                   if not f.get("visible") and not f.get("disabled")
+                   and f.get("type") not in ("password", "hidden")
+                   and _score_username(f)[0] >= STRONG_USERNAME]
+        if not pending:
+            break                       # nothing is on its way; the verdict is final
+        if not logged:
+            log.info("A likely username field is present but not visible yet "
+                     "(%s) - waiting up to %.0fs for the form to finish rendering",
+                     ", ".join(f"id={f['id']!r}" if f.get("id") else f"index={f['index']}"
+                               for f in pending[:3]), settle_s)
+            logged = True
+        await asyncio.sleep(0.3)
+        fields = await read_fields(frame)
+        plan = analyse(fields)
+        if plan.usable:
+            log.info("The form finished rendering after %.1fs; analysis now confidence=%s",
+                     time.monotonic() - started, plan.confidence)
+            return plan, fields
+    if logged:
+        log.warning("The username field never became visible within %.0fs - "
+                    "refusing automatic login (unchanged behaviour)", settle_s)
+    return plan, fields
+
+
+def describe_fields(fields: dict[str, Any]) -> str:
+    """Inventory of the form's inputs, for the log when analysis refuses.
+
+    Without this, a refusal says only *that* it could not identify the username
+    field, and diagnosing a real application means guessing. Printing what was
+    actually on the page turns that into a fact.
+
+    **Metadata only.** `FIELDS_JS` never reads a field's value, so no value can
+    reach this string - not even from the password field, which is listed by
+    type and attributes like any other input.
+    """
+    rows = fields.get("inputs") or []
+    if not rows:
+        return "    (no <input> elements were present on the page at all)"
+    out = [f"    {len(rows)} input(s) found:"]
+    for f in rows:
+        bits = [f"type={f.get('type') or '?'}"]
+        for key in ("label", "placeholder", "autocomplete", "name", "id", "testid"):
+            value = f.get(key)
+            if value:
+                bits.append(f"{key}={value!r}")
+        if f.get("visible"):
+            state = "visible"
+        else:
+            why = f.get("hiddenBy") or ""
+            state = f"NOT-VISIBLE({why})" if why else "NOT-VISIBLE"
+        if f.get("disabled"):
+            state += "+disabled"
+        bits.append(state)
+        form_index = f.get("formIndex", -1)
+        bits.append(f"form#{form_index}" if form_index >= 0 else "no-form")
+        if f.get("type") != "password":
+            score, why = _score_username(f)
+            bits.append(f"usernameScore={score} ({why})")
+        out.append(f"      [{f.get('index')}] " + " ".join(bits))
+    out.append("    A username candidate must be visible, enabled, and not a "
+               "password/hidden/checkbox/radio/submit/button/file input.")
+    return "\n".join(out)
 
 
 @dataclass

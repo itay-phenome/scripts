@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "src"))
 os.environ["P1UID_HOME"] = tempfile.mkdtemp(prefix="p1uid-unit-")
 
 from p1uid import logging_setup, paths                                  # noqa: E402
-from p1uid.auth.login import analyse                                    # noqa: E402
+from p1uid.auth.login import analyse, describe_fields                   # noqa: E402
 from p1uid.locator.generator import candidates, suggest_test_id, apply_validation  # noqa: E402
 from p1uid.navigation import graph as navgraph                          # noqa: E402
 from p1uid.reporting import html_report                                 # noqa: E402
@@ -135,6 +135,53 @@ def test_dialog_title_normalisation() -> None:
     check("two stacked dialogs differ from one",
           fingerprint(struct(path="/app/", dialogs=["Edit INV-0001", "Edit INV-0002"])).digest
           != fingerprint(struct(path="/app/", dialogs=["Edit INV-0001"])).digest)
+
+
+def test_login_diagnostics() -> None:
+    """A refusal must say what was on the page - without any field value.
+
+    The live run against PhenomeOne refused with "no username field candidate
+    found" and nothing else, which is not enough to tell whether the field was
+    missing, invisible, or simply not an <input>.
+    """
+    print("login refusal diagnostics")
+    fields = {
+        "url": "https://example.test/login",
+        "inputs": [
+            {"index": 0, "type": "search", "name": "q", "id": "kb-search", "placeholder": "Search",
+             "autocomplete": "", "label": "", "testid": "", "visible": True,
+             "disabled": False, "formIndex": -1},
+            {"index": 1, "type": "text", "name": "j_username", "id": "u", "placeholder": "",
+             "autocomplete": "", "label": "", "testid": "", "visible": False,
+             "disabled": False, "formIndex": 0},
+            {"index": 2, "type": "password", "name": "j_password", "id": "p", "placeholder": "",
+             "autocomplete": "current-password", "label": "Password", "testid": "",
+             "visible": True, "disabled": False, "formIndex": 0},
+        ],
+        "buttons": [], "errors": [],
+    }
+    text = describe_fields(fields)
+    check("every input is listed", text.count("[0]") == 1 and "[1]" in text and "[2]" in text)
+    check("the input type is reported", "type=search" in text and "type=password" in text)
+    check("an invisible field is called out", "NOT-VISIBLE" in text)
+    check("attribute metadata is reported",
+          "'j_username'" in text and "autocomplete='current-password'" in text)
+    check("the form grouping is reported", "form#0" in text and "no-form" in text)
+    check("the username score explains the refusal",
+          "usernameScore=0" in text and "usernameScore" not in text.split("[2]")[1],
+          "the password row should not be scored as a username")
+    check("the candidate rule is spelled out", "must be visible, enabled" in text)
+
+    # The collector never reads values, so none can appear - assert it anyway.
+    check("no field value can appear", "hunter2" not in text and "secret" not in text.lower())
+    check("empty page is described, not crashed",
+          "no <input> elements" in describe_fields({"inputs": []}))
+
+    # The refusal this actually produced: a visible password, no username.
+    plan = analyse({"inputs": [fields["inputs"][2]], "buttons": []})
+    check("that shape still refuses", not plan.usable and plan.confidence == "LOW")
+    check("and says why", any("no username field candidate" in r for r in plan.reasons),
+          str(plan.reasons))
 
 
 def test_locators() -> None:
@@ -280,7 +327,8 @@ def test_nav_and_report() -> None:
 
 
 if __name__ == "__main__":
-    for fn in (test_routes, test_fingerprint, test_dialog_title_normalisation, test_locators, test_store, test_redaction,
+    for fn in (test_routes, test_fingerprint, test_dialog_title_normalisation, test_login_diagnostics,
+               test_locators, test_store, test_redaction,
                test_login_analysis, test_nav_and_report):
         fn()
     print(f"\n{count - len(failures)}/{count} unit checks passed")
