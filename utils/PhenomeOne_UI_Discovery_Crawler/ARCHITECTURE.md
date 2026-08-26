@@ -100,6 +100,57 @@ dialog creates a distinct state.
 State **ids** are readable slugs (`research-group-germplasms`) assigned once per
 fingerprint and persisted, so they stay stable across sessions.
 
+### Dialog titles are normalised before hashing
+
+A dialog title is structural — "Add Germplasm" and "Confirm delete" are genuinely
+different states — but real applications put the *record* in the title: `Edit
+INV-0001`. Hashed verbatim, that produces one state per record, so a 500-record
+grid yields 500 "edit" states and the map stops being a map.
+
+`normalise_dialog_title()` therefore rewrites the title one **token** at a time.
+A token is replaced with an `:id`-style placeholder — the same convention route
+segments already use — only when the token itself looks like an identifier, and
+a token must contain a digit to be considered at all:
+
+| token shape | example | becomes |
+| --- | --- | --- |
+| prefixed record id | `INV-0001`, `GP-001` | `:id` |
+| letters + 4 digits | `INV0001` | `:id` |
+| bare 4+ digits | `918273` | `:id` |
+| `#` reference | `#4521` | `:id` |
+| UUID | `9f8a7b6c-…` | `:uuid` |
+| 24+ hex chars | `a1b2c3…` | `:hash` |
+| 28+ char id with a digit | `QA260824abcdef…` | `:token` |
+| date | `2025-02-11`, `11/02/2025` | `:date` |
+| time | `14:03` | `:time` |
+
+So `Edit INV-0001` and `Edit INV-0002` both become `Edit :id` — one state —
+while every alphabetic word survives untouched. Deliberate non-goals:
+
+* **Bare 1–3 digit numbers are kept.** `Step 2 of 3` and `Step 3 of 3` are
+  distinct wizard states, and merging them would be worse than the problem being
+  solved. The cost is that a count-bearing title such as `Archive 3 items` still
+  fragments; that is accepted as the conservative trade.
+* **Nothing is stripped, only substituted.** A title that is *entirely* an
+  identifier collapses to `:id` rather than to an empty string, so such dialogs
+  still merge with each other and remain distinguishable from no dialog at all.
+* **Stacked dialogs stay distinct.** Two open dialogs normalise to two entries,
+  so a modal-over-modal state does not collapse into the single-modal one.
+
+The state **slug** is built from the surviving words only, so the id reads
+`…-dialog-edit`, not `…-dialog-edit-id`. The report **label** shows the
+normalised title too: the state represents the whole class of edit dialogs, and
+showing one record's name there would be a fiction — and would put business data
+in the UI map, which §12 forbids independently of any of this.
+
+**Compatibility.** This changes fingerprint *inputs*, so any state whose dialog
+title contains a volatile token gets a new digest, and a UI map recorded before
+this change will show that state as new (its old entry simply stops being
+matched; nothing is corrupted, and re-scanning re-establishes it). States with a
+stable title — every dialog in the existing mock suite: `Add Germplasm`, `Edit
+Germplasm`, `Record details` — hash exactly as before, and route, tab, landmark
+and element identity are untouched.
+
 ## Action attribution
 
 The browser reports which control caused a given state change (`cause` on the

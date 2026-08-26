@@ -9,6 +9,11 @@ and deliberately *excludes* volatile material: record ids, customer/business
 names, timestamps, and result counts. Landmark **roles** are hashed but their
 **names** are not, because a name like "Research Group ABC" is data, not
 structure.
+
+Dialog **titles** are hashed, because "Add Germplasm" and "Confirm delete" are
+genuinely different states - but they are normalised first, since a title like
+"Edit INV-0001" would otherwise produce one state per record. See
+`normalise_dialog_title`.
 """
 from __future__ import annotations
 
@@ -27,6 +32,62 @@ _ID_PATTERNS = [
 ]
 
 _SLUG_STOP = {"", "app", "index", "home", "main", "ui", "web", "en", "#"}
+
+# --------------------------------------------------------------- dialog titles
+#
+# A dialog title routinely embeds the record it acts on - "Edit INV-0001" - so
+# hashing it verbatim fragments the state map into one state per record. The
+# rule below is deliberately narrow: individual TOKENS that look like record
+# identifiers, dates or times are replaced with the same `:id`-style
+# placeholders already used for route segments, and everything else is kept
+# exactly as written. Every purely alphabetic word survives, so "Add
+# Germplasm", "Edit Germplasm" and "Confirm delete" remain three distinct
+# states. A token must contain a digit to be considered volatile at all.
+#
+# This also keeps record names - business data - out of the UI map entirely,
+# which the spec asks for independently of fingerprint stability.
+_TITLE_TOKENS = [
+    (re.compile(r"^#[0-9]+$"), ":id"),                                  # #4521
+    (re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I), ":uuid"),
+    (re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"), ":date"),             # 2025-02-11
+    (re.compile(r"^[0-9]{1,2}[/.][0-9]{1,2}[/.][0-9]{2,4}$"), ":date"),  # 11/02/2025
+    (re.compile(r"^[0-9]{1,2}:[0-9]{2}(:[0-9]{2})?$"), ":time"),        # 14:03
+    (re.compile(r"^[0-9a-f]{24,}$", re.I), ":hash"),
+    (re.compile(r"^[0-9]{4,}$"), ":id"),                                # 4521, not "3"
+    (re.compile(r"^[A-Za-z]{1,6}[-_][0-9]{2,}([-_][A-Za-z0-9]+)*$"), ":id"),  # INV-0001
+    (re.compile(r"^[A-Za-z]{1,6}[0-9]{4,}$"), ":id"),                   # INV0001
+    (re.compile(r"^(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{28,}$"), ":token"),
+]
+
+# Stripped only to test a token; a token that turns out to be stable keeps its
+# punctuation, so `Confirm delete?` is untouched.
+_TITLE_EDGE = "\"'“”‘’()[]{}<>,.;:?!…-–— "
+
+
+def normalise_dialog_title(title: str) -> str:
+    """`Edit INV-0001` -> `Edit :id`; `Add Germplasm` -> `Add Germplasm`.
+
+    Whitespace is collapsed. Tokens are examined one at a time and only
+    replaced when the token *itself* looks like a record identifier, so a
+    meaningful title is never broadly stripped.
+    """
+    out: list[str] = []
+    for token in (title or "").split():
+        core = token.strip(_TITLE_EDGE)
+        repl = ""
+        if core:
+            for pat, placeholder in _TITLE_TOKENS:
+                if pat.match(core):
+                    repl = placeholder
+                    break
+        out.append(repl or token)
+    return " ".join(out)
+
+
+def _dialog_slug(normalised: str, max_len: int = 24) -> str:
+    """Slug from the stable words only - a placeholder is not a name."""
+    kept = [t for t in normalised.split() if not t.startswith(":")]
+    return slugify(" ".join(kept), max_len)
 
 
 def normalise_route(path: str, hash_frag: str = "") -> str:
@@ -70,7 +131,10 @@ class Fingerprint:
 def fingerprint(structure: dict[str, Any]) -> Fingerprint:
     route = normalise_route(structure.get("path", "/"), structure.get("hash", ""))
     active_tab = structure.get("activeTab") or ""
-    dialogs = sorted(structure.get("dialogs") or [])
+    # Volatile record tokens are normalised out before hashing, so the edit
+    # dialog for every record is one state. Duplicates are kept: two stacked
+    # dialogs are structurally different from one.
+    dialogs = sorted(normalise_dialog_title(d) for d in (structure.get("dialogs") or []))
     tabs = sorted(structure.get("tabs") or [])
     landmark_roles = sorted({lm.split(":", 1)[0] for lm in (structure.get("landmarks") or [])})
 
@@ -97,7 +161,8 @@ def fingerprint(structure: dict[str, Any]) -> Fingerprint:
     )
     bits = [b for b in (route_slug, slugify(active_tab, 24)) if b]
     if dialogs:
-        bits.append("dialog-" + slugify(dialogs[0], 24))
+        d = _dialog_slug(dialogs[0])
+        bits.append("dialog-" + d if d else "dialog")
     slug = "-".join(bits)
     if not slug:
         # A bare route such as /app/ carries no structure in the path: name the

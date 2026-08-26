@@ -16,7 +16,8 @@ from p1uid.auth.login import analyse                                    # noqa: 
 from p1uid.locator.generator import candidates, suggest_test_id, apply_validation  # noqa: E402
 from p1uid.navigation import graph as navgraph                          # noqa: E402
 from p1uid.reporting import html_report                                 # noqa: E402
-from p1uid.state.fingerprint import fingerprint, normalise_route        # noqa: E402
+from p1uid.state.fingerprint import (fingerprint, normalise_dialog_title,  # noqa: E402
+                                     normalise_route)
 from p1uid.store.uimap import UIMapStore, UNSTABLE_FLAG, element_key    # noqa: E402
 
 failures: list[str] = []
@@ -62,6 +63,78 @@ def test_fingerprint() -> None:
     check("slug is human readable", fingerprint(a).slug == "research-group-germplasms",
           fingerprint(a).slug)
     check("label keeps the human heading", "Research Group ABC" in fingerprint(a).label)
+
+
+def test_dialog_title_normalisation() -> None:
+    """Volatile record tokens must collapse; stable titles must stay distinct.
+
+    The failure this guards against: "Edit INV-0001" and "Edit INV-0002" used to
+    produce two states, so the map grew one state per record. The opposite
+    failure matters just as much - stripping too much would merge "Add
+    Germplasm" with "Edit Germplasm", or two wizard steps with each other.
+    """
+    print("dialog title normalisation")
+
+    def dlg(title):
+        return fingerprint(struct(path="/app/", tabs=["A"], landmarks=["main"], dialogs=[title]))
+
+    # --- collapses: the same dialog acting on a different record ------------
+    volatile = [
+        ("Edit INV-0001", "Edit INV-0002", "Edit :id"),
+        ('Delete "INV-0417"?', 'Delete "INV-0418"?', "Delete :id"),
+        ("Edit germplasm (GP-001)", "Edit germplasm (GP-002)", "Edit germplasm :id"),
+        ("Order #4521", "Order #99", "Order :id"),
+        ("Trial 2025-02-11 14:03", "Trial 2025-03-04 09:12", "Trial :date :time"),
+        ("Edit 918273", "Edit 100200", "Edit :id"),
+        ("Edit 9f8a7b6c-1234-4321-abcd-0123456789ab",
+         "Edit 0000ffff-1111-2222-3333-444455556666", "Edit :uuid"),
+    ]
+    for one, two, expected in volatile:
+        check(f"normalises {one!r} -> {expected!r}",
+              normalise_dialog_title(one) == expected, normalise_dialog_title(one))
+        check(f"{one!r} and {two!r} are the SAME state", dlg(one).digest == dlg(two).digest)
+
+    check("the record name never reaches the state id",
+          "0001" not in dlg("Edit INV-0001").slug and "0001" not in dlg("Edit INV-0001").label,
+          dlg("Edit INV-0001").slug + " / " + dlg("Edit INV-0001").label)
+    check("the collapsed state is still named after the dialog",
+          dlg("Edit INV-0001").slug == "dialog-edit", dlg("Edit INV-0001").slug)
+
+    # --- preserves: semantically distinct titles ---------------------------
+    distinct = [
+        ("Add Germplasm", "Edit Germplasm"),
+        ("Confirm delete?", "Confirm archive?"),
+        ("Step 2 of 3", "Step 3 of 3"),          # wizard steps are real states
+        ("Import Wizard", "Export Wizard"),
+        ("Record details", "Record history"),
+        ("Archive 3 items", "Archive 4 items"),  # small bare numbers are kept
+        ("Select Date", "Select Time"),
+    ]
+    for one, two in distinct:
+        check(f"{one!r} is left alone", normalise_dialog_title(one) == one,
+              normalise_dialog_title(one))
+        check(f"{one!r} and {two!r} remain DIFFERENT states", dlg(one).digest != dlg(two).digest)
+
+    check("a purely alphabetic title is never touched",
+          normalise_dialog_title("Confirm irreversible deletion of selected records")
+          == "Confirm irreversible deletion of selected records")
+    check("an all-volatile title collapses to a placeholder, not to nothing",
+          normalise_dialog_title("QA-260824-1a2b") == ":id"
+          and dlg("QA-260824-1a2b").slug == "dialog", dlg("QA-260824-1a2b").slug)
+    check("a dialog is still distinguishable from no dialog",
+          dlg("Edit INV-0001").digest
+          != fingerprint(struct(path="/app/", tabs=["A"], landmarks=["main"])).digest)
+    check("normalisation is idempotent",
+          normalise_dialog_title(normalise_dialog_title("Edit INV-0001")) == "Edit :id")
+
+    # --- compatibility: routes and non-dialog signals are untouched --------
+    check("route normalisation is unchanged by this rule",
+          normalise_route("/research-group/123/germplasms") == "/research-group/:id/germplasms")
+    check("existing stable-titled states keep their id",
+          dlg("Add Germplasm").slug == "dialog-add-germplasm", dlg("Add Germplasm").slug)
+    check("two stacked dialogs differ from one",
+          fingerprint(struct(path="/app/", dialogs=["Edit INV-0001", "Edit INV-0002"])).digest
+          != fingerprint(struct(path="/app/", dialogs=["Edit INV-0001"])).digest)
 
 
 def test_locators() -> None:
@@ -207,7 +280,7 @@ def test_nav_and_report() -> None:
 
 
 if __name__ == "__main__":
-    for fn in (test_routes, test_fingerprint, test_locators, test_store, test_redaction,
+    for fn in (test_routes, test_fingerprint, test_dialog_title_normalisation, test_locators, test_store, test_redaction,
                test_login_analysis, test_nav_and_report):
         fn()
     print(f"\n{count - len(failures)}/{count} unit checks passed")

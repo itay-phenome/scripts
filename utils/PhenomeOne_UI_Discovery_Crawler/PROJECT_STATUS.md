@@ -5,11 +5,11 @@
 | | |
 |---|---|
 | Last updated | 2026-08-26 |
-| Version | 1.2.0 (discovery + autonomous crawl + **functional QA engine, Phase 1**) |
-| Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed; Phase 1 work is local until committed) |
-| Build output | `C:\Users\itay-b\p1uid-phase1\PhenomeOne-UI-Discovery\` (555 MB, v1.2.0) |
+| Version | 1.3.0 (discovery + autonomous crawl + functional QA engine + **normalised dialog-state identity**) |
+| Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed) |
+| Build output | `C:\Users\itay-b\p1uid-phase2a\PhenomeOne-UI-Discovery\` (555 MB, v1.3.0) |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **444/444 passing** — 414 source (11 suites, 3 consecutive clean runs) + 30 packaged |
+| Tests | **506/506 passing** — 476 source (12 suites, 3 consecutive clean runs) + 30 packaged |
 | Blocked on | **EKS-LAB / real PhenomeOne validation — no credentials in this session** |
 | First real run | 2026-08-24 against `eksdemo-helm.phenome-networks.com`: exposed 4 bugs, all fixed (see §2.7) |
 
@@ -196,6 +196,94 @@ view). It now reports the first *visible* heading.
 Deliberately **not** done in this phase, as instructed: geometry capture,
 automatic locator healing, Jenkinsfile, GUI button for functional runs.
 
+### Phase 10 — Hardening against component-framework UIs (2026-08-26)
+
+Chosen over real-environment validation because credentials were not available.
+`tests/mock_app/hardgrid.html` was built to break the engine's comfortable
+assumptions the way a real Angular/Material SaaS will, and then the engine was
+fixed until it coped.
+
+What the adversarial page does: a `role=combobox` whose `role=listbox` is
+**portaled to `<body>`** and does not exist until clicked; a **virtualised grid**
+(500 records, ~13 rows in the DOM); rows identified only by cell text; and an
+edit dialog whose **heading contains the record name**.
+
+| Assumption tested | Verdict |
+|---|---|
+| Row addressing by accessible name | **Held.** `get_by_role('row', name='INV-0001')` matches a rendered row from its cell text. |
+| Options are discoverable from the map | **Failed, by design of the framework.** `options` is only captured for a real `<select>`; a portaled listbox has no DOM until opened. Recorded as a documented gap - the functional layer opens the control instead. |
+| `assert count == 0` means "deleted" | **Dangerous.** With virtualisation an existing record is simply absent from the DOM. The suite now uses **filter-then-assert**, so an absence check is meaningful; the trap itself is asserted by the test. |
+
+Engine changes:
+* **`select` is polymorphic** - native `<select>` uses `select_option`; anything
+  else is opened, the `role=option` is located *anywhere on the page* (the overlay
+  is not a child of the control), clicked, and then the control is **read back** to
+  confirm it took the value rather than trusting the click. Ambiguous or absent
+  options fail closed, and a stray overlay is dismissed on failure.
+* **Inter-test UI reset** - a test that failed with a modal open used to poison
+  every later test, because everything behind a modal is inert and the next click
+  merely timed out. The runner now clears stray modal/overlay surfaces between
+  tests (Escape, then a return to the start URL if that is not enough).
+* `scroll_into_view_if_needed` before a click, for long grids.
+
+A finding about the *mock*, not the engine: the first version combined a native
+`<dialog>` opened with `showModal()` **and** a body-portaled listbox. The native
+modal occupies the top layer, so the portaled option is visible but **inert** - a
+hit-test at its centre returns the dialog. No component framework ships that
+combination (Material uses `div[aria-modal]` + a CDK backdrop precisely so overlay
+siblings stay interactive), so the page was corrected. The engine's timeout was
+the right behaviour.
+
+Measured on this page: a volatile dialog title fragmented the state map. Editing
+two records yielded `hardgrid-html-dialog-edit-inv-0001` and `...-inv-0002` - one
+state per record. Reported rather than silently fixed, because it changes
+fingerprint inputs. **Approved by you on 2026-08-26 and now fixed** - see Phase
+10a.
+
+### Phase 10a — Volatile dialog-title normalisation (2026-08-26, approved)
+
+`state/fingerprint.py` gained `normalise_dialog_title()`, applied to every open
+dialog title before it is hashed, slugged or labelled. The rule is
+token-by-token: a token is replaced with an `:id`-style placeholder - the same
+convention route segments already use - only when the token itself looks like an
+identifier, and it must contain a digit to be considered at all. Full rule table
+and rationale: **ARCHITECTURE.md → "Dialog titles are normalised before
+hashing"**.
+
+| | |
+|---|---|
+| Collapses | `INV-0001`/`GP-001` → `:id`, `INV0001` → `:id`, 4+ bare digits → `:id`, `#4521` → `:id`, UUID → `:uuid`, 24+ hex → `:hash`, 28+ char id containing a digit → `:token`, `2025-02-11`/`11/02/2025` → `:date`, `14:03` → `:time` |
+| Never touched | every alphabetic word; bare 1-3 digit numbers |
+| Result | `Edit INV-0001` and `Edit INV-0002` are **one** state, `hardgrid-html-dialog-edit`; `Add Germplasm` stays a separate state |
+
+Deliberate limits, all test-asserted:
+* **1-3 digit numbers survive**, so `Step 2 of 3` and `Step 3 of 3` remain
+  distinct wizard states. The accepted cost: a count-bearing title such as
+  `Archive 3 items` still fragments. Merging wizard steps would be worse than
+  the problem being solved.
+* **Substitution, never deletion.** An all-identifier title collapses to `:id`,
+  so those dialogs still merge with each other and a dialog is still
+  distinguishable from no dialog.
+* **Stacked dialogs stay distinct** - two open dialogs normalise to two entries.
+* The state **slug** is built from surviving words only (`...-dialog-edit`, not
+  `...-dialog-edit-id`), and the report **label** shows the normalised title,
+  because the state represents the whole class of edit dialogs - and showing a
+  record name there would put business data in the UI map, which §12 of the spec
+  forbids independently.
+
+**Compatibility.** Fingerprint *inputs* changed, so a state whose dialog title
+contains a volatile token gets a new digest; a UI map recorded before this change
+shows that state as new, and re-scanning re-establishes it (nothing is
+corrupted). Every dialog in the existing mock suite has a stable title - `Add
+Germplasm`, `Edit Germplasm`, `Record details` - so those digests are **byte-identical
+to before**. Routes, tabs, landmarks and element identity are untouched.
+
+Regression cover: `test_units.py::test_dialog_title_normalisation` (40 checks -
+7 volatile pairs proved to collapse, 7 stable pairs proved to stay distinct, plus
+idempotence, all-volatile, stacked-dialog and route-untouched guards) and
+`test_hardgrid.py` section 5, which now proves in a live browser that editing two
+records yields **one** state id while Add remains its own.
+
 ---
 
 ## 3. Test status
@@ -207,11 +295,12 @@ Run everything three times from a clean state with:
 
 | Suite | Checks | Covers |
 |---|---|---|
-| `test_units.py` | 47 | fingerprints, locators, store merge, redaction, login analysis, nav tree, report |
+| `test_units.py` | 84 | fingerprints incl. **dialog-title normalisation (40)**, locators, store merge, redaction, login analysis, nav tree, report |
 | `test_safety.py` | 103 | classifier: 69 unit + 34 live on the hardened mock |
 | `test_crawler.py` | 22 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_pipeline.py` | 50 | workflows, UI diff, codegen, JUnit, CI exit codes |
 | `test_recovery.py` | 15 | the four live-environment failures above |
+| `test_hardgrid.py` | 25 | component-framework UI: portaled combobox, virtualised grid, volatile dialog titles |
 | `test_functional.py` | 48 | the functional milestone: full CRUD lifecycle, both fail-closed guards, evidence, cleanup-after-failure, Safe Crawl untouched |
 | `test_redteam.py` | 36 | adversarial surface: URL commands, popups, JS downloads, nested iframes, loops, ambiguity, unlabelled controls |
 | `test_artifacts.py` | 34 | exact artifact set, schema keys, **generated Python executed against the mock**, leak scan |
@@ -219,7 +308,7 @@ Run everything three times from a clean state with:
 | `test_login_variants.py` | 8 | slow form, iframe IdP form, landing page, no form |
 | `test_gui_smoke.py` | 21 | real Tk window driving the real browser |
 | `test_packaged.py` | 30 | relocated frozen build in a stripped environment |
-| **Total** | **326** | all passing as of this update |
+| **Total** | **506** | 476 source + 30 packaged, all passing as of this update |
 
 `test_packaged.py` takes a path: `python tests/test_packaged.py <dist>/PhenomeOne-UI-Discovery`.
 It **moves** the folder (relocation test), so pass the current location.

@@ -202,6 +202,10 @@ class FunctionalRunner:
                 raise StepFailure("refusing a destructive action: target is disabled",
                                   expected="enabled", actual="disabled")
             log.warning("DESTRUCTIVE step authorised by test: %s", step.describe())
+        try:
+            await handle.first.scroll_into_view_if_needed(timeout=2000)
+        except Exception:
+            pass                              # not scrollable, or already visible
         await handle.first.click(timeout=step.timeout_ms)
         await self._settle()
 
@@ -212,17 +216,72 @@ class FunctionalRunner:
         result.actual = "filled"
 
     async def _do_select(self, step: Step, result: StepResult, value: str) -> None:
+        """Choose an option, whether or not the control is a real <select>.
+
+        A component framework usually renders a `role=combobox` whose
+        `role=listbox` is portaled to <body> when opened, so the options are not
+        children of the control and do not exist at all until it is clicked.
+        Both shapes are handled; the wrong one is never guessed at.
+        """
         handle, spec, _ = await self._require_single(step.target, step)
         result.locator = spec.js
         try:
-            chosen = await handle.first.select_option(label=value, timeout=step.timeout_ms)
+            tag = (await handle.first.evaluate("el => el.tagName.toLowerCase()")) or ""
         except Exception:
-            chosen = await handle.first.select_option(value=value, timeout=step.timeout_ms)
-        if not chosen:
-            raise StepFailure(f"option {value!r} could not be selected", expected=value,
-                              actual="no option matched")
+            tag = ""
+
+        if tag == "select":
+            try:
+                chosen = await handle.first.select_option(label=value, timeout=step.timeout_ms)
+            except Exception:
+                chosen = await handle.first.select_option(value=value, timeout=step.timeout_ms)
+            if not chosen:
+                raise StepFailure(f"option {value!r} could not be selected", expected=value,
+                                  actual="no option matched")
+            await self._settle()
+            result.actual = chosen
+            return
+
+        # Custom combobox: open it, then find the option anywhere on the page -
+        # the overlay is typically NOT inside the control.
+        await handle.first.click(timeout=step.timeout_ms)
         await self._settle()
-        result.actual = chosen
+        option = self.page.get_by_role("option", name=value, exact=True)
+        found = await option.count()
+        if found == 0:
+            option = self.page.get_by_role("option", name=value, exact=False)
+            found = await option.count()
+        if found == 0:
+            await self._dismiss_overlay()
+            raise StepFailure(
+                f"option {value!r} did not appear after opening the control",
+                expected=value, actual="no option in the listbox")
+        if found > 1:
+            await self._dismiss_overlay()
+            raise StepFailure(
+                f"option {value!r} is ambiguous ({found} matches) - refusing to guess",
+                expected="exactly 1 option", actual=found)
+        await option.first.click(timeout=step.timeout_ms)
+        await self._settle()
+
+        # Confirm the control actually took the value, rather than trusting the click.
+        shown = ""
+        try:
+            shown = " ".join(((await handle.first.text_content()) or "").split())
+        except Exception:
+            pass
+        result.actual = shown[:80] or "(no text)"
+        if value not in shown:
+            raise StepFailure("the control does not show the selected option",
+                              expected=value, actual=result.actual)
+
+    async def _dismiss_overlay(self) -> None:
+        """Close a stray dropdown so a failure does not block the next step."""
+        try:
+            await self.page.keyboard.press("Escape")
+            await self._settle()
+        except Exception:
+            pass
 
     async def _do_assert(self, step: Step, result: StepResult) -> None:
         expect = step.expect
@@ -422,6 +481,45 @@ class FunctionalRunner:
                   ", ".join(k for k in ("screenshot", "trace") if bundle.get(k)) or "logs only")
         return {k: v for k, v in bundle.items() if v not in (None, [], {}, "")}
 
+    async def _reset_ui(self) -> None:
+        """Leave the app usable for the next test.
+
+        A test that fails with a modal open would otherwise poison every later
+        test in the suite: everything behind a modal is inert, so the next click
+        just times out. Escape first; if the surface is still there, go back to
+        the start URL - a known state beats a blocked one.
+        """
+        if self.page is None or self.page.is_closed():
+            return
+        probe = """() => {
+            const vis = (e) => {
+              const r = e.getBoundingClientRect();
+              const s = getComputedStyle(e);
+              return r.width > 1 && r.height > 1 && s.display !== 'none'
+                     && s.visibility !== 'hidden';
+            };
+            return Array.from(document.querySelectorAll(
+              'dialog[open],[role=dialog],[role=alertdialog],[aria-modal="true"],[role=listbox]'
+            )).filter(vis).length;
+        }"""
+        try:
+            stuck = await self.page.evaluate(probe)
+        except Exception:
+            return
+        if not stuck:
+            return
+        log.info("Resetting the UI between tests: %d modal/overlay surface(s) left open", stuck)
+        try:
+            await self.page.keyboard.press("Escape")
+            await self._settle()
+            stuck = await self.page.evaluate(probe)
+        except Exception:
+            stuck = 1
+        if stuck and self.engine.base_url:
+            log.info("Escape did not clear it; returning to the start URL")
+            await self._goto_root()
+        self._state = None
+
     # ---------------------------------------------------------------- suite
     async def run_suite(self, suite: Suite) -> SuiteResult:
         out = SuiteResult(suite=suite.name, run_id=self.run_id,
@@ -436,6 +534,8 @@ class FunctionalRunner:
                     out.aborted = "the browser page was closed"
                     break
                 out.tests.append(await self.run_test(test))
+                # Isolation: one test's leftover modal must not fail the next.
+                await self._reset_ui()
         finally:
             await self.evidence.stop_all(self.engine.context)
             self.evidence.detach()

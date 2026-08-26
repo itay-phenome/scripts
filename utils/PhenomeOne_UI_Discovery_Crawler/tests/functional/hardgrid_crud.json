@@ -1,0 +1,162 @@
+{
+  "name": "hardgrid-crud",
+  "tests": [
+    {
+      "name": "Inventory CRUD on a virtualised grid with a portaled dropdown",
+      "level": "critical",
+      "description": "Same lifecycle as the simple grid, but against 500 records where only ~12 rows exist in the DOM and the Type control is a role=combobox whose listbox is portaled to <body>.",
+      "tags": ["crud", "virtualised", "combobox"],
+      "steps": [
+        {
+          "action": "assert",
+          "target": { "role": "grid", "name": "Germplasm inventory" },
+          "expect": { "visible": true },
+          "description": "the inventory grid is present"
+        },
+
+        {
+          "action": "fill",
+          "target": { "role": "searchbox", "name": "Filter germplasms" },
+          "value": "{record}",
+          "description": "filter to the record name BEFORE asserting absence - with virtual scrolling, 'not in the DOM' does not mean 'not in the data'"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "{record}", "exact": false },
+          "expect": { "count": 0 },
+          "description": "the record does not exist yet (filter applied, so this is meaningful)"
+        },
+
+        {
+          "action": "click",
+          "target": { "testid": "hg-add" },
+          "description": "open the Add dialog"
+        },
+        {
+          "action": "fill",
+          "target": { "role": "textbox", "name": "Name" },
+          "value": "{record}",
+          "description": "enter the record name"
+        },
+        {
+          "action": "select",
+          "target": { "testid": "hg-type" },
+          "value": "Landrace",
+          "description": "choose a type from the PORTALED listbox (not a <select>)"
+        },
+        {
+          "action": "click",
+          "target": { "testid": "hg-save" },
+          "destructive": true,
+          "creates": "{record}",
+          "description": "SAVE the new record (create)"
+        },
+
+        {
+          "action": "fill",
+          "target": { "role": "searchbox", "name": "Filter germplasms" },
+          "value": "{record}",
+          "description": "filter to the new record"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "{record}", "exact": false },
+          "expect": { "count": 1 },
+          "description": "exactly one matching row exists"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "{record}", "exact": false },
+          "expect": { "textContains": "Landrace" },
+          "description": "the portaled dropdown selection was persisted"
+        },
+
+        {
+          "action": "click",
+          "target": {
+            "role": "button",
+            "name": "Edit",
+            "within": { "role": "row", "name": "{record}", "exact": false }
+          },
+          "description": "edit the record (row-scoped inside the virtual window)"
+        },
+        {
+          "action": "select",
+          "target": { "testid": "hg-type" },
+          "value": "Hybrid",
+          "description": "change the type through the portaled listbox"
+        },
+        {
+          "action": "click",
+          "target": { "testid": "hg-save" },
+          "destructive": true,
+          "description": "SAVE the change (update)"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "{record}", "exact": false },
+          "expect": { "textContains": "Hybrid" },
+          "description": "the change was persisted"
+        },
+
+        {
+          "action": "click",
+          "target": {
+            "role": "button",
+            "name": "Delete",
+            "within": { "role": "row", "name": "{record}", "exact": false }
+          },
+          "destructive": true,
+          "removes": "{record}",
+          "description": "DELETE the record (row-scoped)"
+        },
+        {
+          "action": "fill",
+          "target": { "role": "searchbox", "name": "Filter germplasms" },
+          "value": "{record}",
+          "description": "re-filter so the absence check is meaningful"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "{record}", "exact": false },
+          "expect": { "count": 0 },
+          "description": "the record is gone from the data, not merely off-screen"
+        },
+
+        {
+          "action": "fill",
+          "target": { "role": "searchbox", "name": "Filter germplasms" },
+          "value": "INV-0001",
+          "description": "clear the filter down to a seeded record"
+        },
+        {
+          "action": "assert",
+          "target": { "role": "row", "name": "INV-0001", "exact": false },
+          "expect": { "count": 1 },
+          "description": "the seeded data was not disturbed"
+        }
+      ],
+      "cleanup": [
+        {
+          "action": "fill",
+          "target": { "role": "searchbox", "name": "Filter germplasms" },
+          "value": "{record}",
+          "optional": true,
+          "description": "filter to the test record"
+        },
+        {
+          "action": "click",
+          "target": {
+            "role": "button",
+            "name": "Delete",
+            "within": { "role": "row", "name": "{record}", "exact": false }
+          },
+          "destructive": true,
+          "optional": true,
+          "removes": "{record}",
+          "description": "remove the test record if it survived"
+        }
+      ]
+    }
+  ]
+}

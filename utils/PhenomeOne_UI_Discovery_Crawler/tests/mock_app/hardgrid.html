@@ -1,0 +1,264 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PhenomeOne (hard grid)</title>
+<style>
+ body{font:14px/1.5 Segoe UI,sans-serif;margin:0;padding:14px 18px;color:#222}
+ h1{font-size:20px;margin:0 0 10px}
+ .toolbar{display:flex;gap:8px;align-items:center;margin:10px 0}
+ /* --- CDK/Material-style overlay: the listbox is a child of <body>, NOT of the
+        combobox that owns it. A naive "options inside the control" assumption
+        fails here, which is the point. --- */
+ .combo{display:inline-flex;align-items:center;justify-content:space-between;
+        min-width:150px;padding:5px 8px;border:1px solid #bbb;border-radius:3px;
+        background:#fff;cursor:pointer;user-select:none}
+ .combo::after{content:"\25BE";margin-left:8px;color:#666}
+ .overlay{position:absolute;z-index:50;background:#fff;border:1px solid #999;
+          box-shadow:0 6px 18px rgba(0,0,0,.18);min-width:150px;padding:4px 0}
+ .overlay [role=option]{padding:6px 14px;cursor:pointer}
+ .overlay [role=option][aria-selected=true]{background:#eef5ff;font-weight:600}
+ /* --- virtual grid: fixed viewport, only the visible window is in the DOM --- */
+ .grid{border:1px solid #ddd;max-width:820px}
+ .grid [role=row]{display:flex;border-bottom:1px solid #eee}
+ .grid [role=columnheader]{font-weight:600;background:#f2f5f4}
+ .grid [role=gridcell],.grid [role=columnheader]{flex:1;padding:6px 9px;overflow:hidden}
+ .grid .actions{flex:0 0 150px}
+ #viewport{height:264px;overflow-y:auto;position:relative}
+ #spacer{position:relative}
+ #window{position:absolute;left:0;right:0}
+ .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:40}
+ .modal{position:fixed;top:12%;left:50%;transform:translateX(-50%);z-index:45;
+        background:#fff;border:1px solid #999;border-radius:6px;padding:16px;min-width:360px;
+        box-shadow:0 10px 30px rgba(0,0,0,.25)}
+ .hidden{display:none}
+ label{display:block;margin:8px 0 2px;font-weight:600}
+ input{padding:5px 7px;border:1px solid #bbb;border-radius:3px}
+ .muted{color:#666;font-size:12px}
+</style>
+
+<!--
+  Adversarial-but-realistic surface, modelled on what an Angular/Material SaaS
+  actually renders. Every construct here defeats a comfortable assumption the
+  engine currently makes:
+
+   1. the Type control is NOT a <select>: it is role=combobox whose role=listbox
+      overlay is appended to <body> when opened (a CDK overlay / portal);
+   2. the grid is VIRTUALISED: 500 records exist, ~12 rows are in the DOM, so a
+      record can be entirely absent from the DOM without being deleted;
+   3. rows carry no record name in an aria-label - only cell text and a
+      data-row-id - so a row must be found by its content;
+   4. the edit dialog's heading contains the RECORD NAME, which is exactly the
+      kind of volatile title that fragments a state fingerprint.
+
+  This page is standalone on purpose: adding a tab to index.html would change
+  the tab set and therefore every research-group-* fingerprint.
+-->
+
+<h1>Germplasm inventory</h1>
+<p class="muted" id="status">loading</p>
+
+<div class="toolbar" role="toolbar" aria-label="Inventory actions">
+  <button data-testid="hg-add">Add Germplasm</button>
+  <label for="hg-filter" style="margin:0">Filter</label>
+  <input id="hg-filter" type="search" aria-label="Filter germplasms" placeholder="name contains">
+  <span class="muted" id="hg-count"></span>
+</div>
+
+<div class="grid" role="grid" aria-label="Germplasm inventory">
+  <div role="row">
+    <div role="columnheader">Name</div>
+    <div role="columnheader">Type</div>
+    <div role="columnheader">Created</div>
+    <div role="columnheader" class="actions">Actions</div>
+  </div>
+  <div id="viewport">
+    <div id="spacer"><div id="window"></div></div>
+  </div>
+</div>
+
+<div id="hg-backdrop" class="backdrop hidden"></div>
+<div id="hg-dialog" class="modal hidden" role="dialog" aria-modal="true"
+     aria-labelledby="hg-dialog-title">
+  <h2 id="hg-dialog-title">Add Germplasm</h2>
+  <label for="hg-name">Name</label>
+  <input id="hg-name" type="text">
+  <label id="hg-type-label" for="hg-type-combo">Type</label>
+  <!-- role=combobox, not <select>. Its listbox lives in an overlay on <body>. -->
+  <div id="hg-type-combo" class="combo" role="combobox" tabindex="0"
+       aria-haspopup="listbox" aria-expanded="false" aria-labelledby="hg-type-label"
+       aria-controls="hg-type-listbox" data-testid="hg-type">Inbred</div>
+  <p>
+    <button data-testid="hg-save">Save</button>
+    <button data-testid="hg-cancel">Cancel</button>
+  </p>
+</div>
+
+<script>
+/* ------------------------------------------------------ side effects */
+const SFX = "hgSideEffects";
+function sideEffect(w) {
+  try {
+    const a = JSON.parse(sessionStorage.getItem(SFX) || "[]");
+    a.push(w); sessionStorage.setItem(SFX, JSON.stringify(a));
+  } catch (e) { }
+}
+Object.defineProperty(window, "__sideEffects", {
+  get() { try { return JSON.parse(sessionStorage.getItem(SFX) || "[]"); } catch (e) { return []; } }
+});
+
+/* ------------------------------------------------------------ data */
+const KEY = "hgRecords";
+const TYPES = ["Inbred", "Hybrid", "Landrace"];
+const ROW_H = 33, WINDOW_ROWS = 12;          // only ~12 rows ever exist in the DOM
+
+function seed() {
+  const out = [];
+  for (let i = 1; i <= 500; i++) {
+    out.push({ name: "INV-" + String(i).padStart(4, "0"),
+               type: TYPES[i % 3], created: "2025-02-11" });
+  }
+  return out;
+}
+function records() {
+  try {
+    const raw = sessionStorage.getItem(KEY);
+    return raw ? JSON.parse(raw) : seed();
+  } catch (e) { return seed(); }
+}
+function setRecords(list) {
+  try { sessionStorage.setItem(KEY, JSON.stringify(list)); } catch (e) { }
+}
+
+const esc = (s) => String(s == null ? "" : s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/* ------------------------------------------------- virtualised grid */
+let filtered = [];
+
+function applyFilter() {
+  const q = (document.getElementById("hg-filter").value || "").trim().toLowerCase();
+  const all = records();
+  filtered = q ? all.filter(r => r.name.toLowerCase().includes(q)) : all;
+  document.getElementById("spacer").style.height = (filtered.length * ROW_H) + "px";
+  document.getElementById("hg-count").textContent = filtered.length + " of " + all.length;
+  renderWindow();
+}
+
+function renderWindow() {
+  const vp = document.getElementById("viewport");
+  const first = Math.max(0, Math.floor(vp.scrollTop / ROW_H) - 2);
+  const slice = filtered.slice(first, first + WINDOW_ROWS);
+  const win = document.getElementById("window");
+  win.style.transform = "translateY(" + (first * ROW_H) + "px)";
+  win.innerHTML = slice.map(r =>
+    `<div role="row" data-row-id="${esc(r.name)}">` +
+    `<div role="gridcell">${esc(r.name)}</div>` +
+    `<div role="gridcell">${esc(r.type)}</div>` +
+    `<div role="gridcell">${esc(r.created)}</div>` +
+    `<div role="gridcell" class="actions">` +
+    `<button data-action="hg-edit">Edit</button> ` +
+    `<button data-action="hg-delete">Delete</button></div></div>`).join("");
+  document.getElementById("status").textContent =
+    "showing rows " + (first + 1) + "-" + (first + slice.length) + " of " + filtered.length +
+    " (only these exist in the DOM)";
+}
+
+document.getElementById("viewport").addEventListener("scroll", renderWindow);
+document.getElementById("hg-filter").addEventListener("input", applyFilter);
+
+/* -------------------------------------------- overlay combobox (CDK) */
+let overlay = null;
+
+function comboValue() { return document.getElementById("hg-type-combo").textContent.trim(); }
+
+function closeCombo() {
+  if (overlay) { overlay.remove(); overlay = null; }
+  document.getElementById("hg-type-combo").setAttribute("aria-expanded", "false");
+}
+
+function openCombo() {
+  if (overlay) { closeCombo(); return; }
+  const combo = document.getElementById("hg-type-combo");
+  const box = combo.getBoundingClientRect();
+  overlay = document.createElement("div");
+  overlay.className = "overlay";
+  overlay.id = "hg-type-listbox";
+  overlay.setAttribute("role", "listbox");
+  overlay.setAttribute("aria-label", "Type");
+  overlay.style.top = (box.bottom + window.scrollY + 2) + "px";
+  overlay.style.left = (box.left + window.scrollX) + "px";
+  overlay.innerHTML = TYPES.map(t =>
+    `<div role="option" tabindex="-1" aria-selected="${t === comboValue()}">${t}</div>`).join("");
+  // Appended to BODY, not to the combobox: this is the portal pattern.
+  document.body.appendChild(overlay);
+  combo.setAttribute("aria-expanded", "true");
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#hg-type-combo")) { openCombo(); return; }
+  const opt = e.target.closest(".overlay [role=option]");
+  if (opt) {
+    document.getElementById("hg-type-combo").textContent = opt.textContent.trim();
+    closeCombo();
+    return;
+  }
+  if (overlay && !e.target.closest(".overlay")) closeCombo();
+});
+
+/* --------------------------------------------------------- dialog */
+let editing = null;
+
+function openDialog(name) {
+  editing = name || null;
+  const rec = name ? records().find(r => r.name === name) : null;
+  // The heading carries the RECORD NAME when editing - volatile by design.
+  document.getElementById("hg-dialog-title").textContent =
+    rec ? ("Edit " + rec.name) : "Add Germplasm";
+  document.getElementById("hg-name").value = rec ? rec.name : "";
+  document.getElementById("hg-type-combo").textContent = rec ? rec.type : "Inbred";
+  closeCombo();
+  showDialog(true);
+}
+
+function showDialog(open) {
+  document.getElementById("hg-dialog").classList.toggle("hidden", !open);
+  document.getElementById("hg-backdrop").classList.toggle("hidden", !open);
+  if (!open) closeCombo();
+}
+
+function save() {
+  const name = (document.getElementById("hg-name").value || "").trim();
+  const type = comboValue();
+  if (!name) return;
+  const list = records();
+  if (editing) {
+    const row = list.find(r => r.name === editing);
+    if (row) { row.name = name; row.type = type; }
+    sideEffect("update:" + name);
+  } else if (!list.some(r => r.name === name)) {
+    list.unshift({ name: name, type: type, created: new Date().toISOString().slice(0, 10) });
+    sideEffect("create:" + name);
+  }
+  setRecords(list);
+  editing = null;
+  showDialog(false);
+  applyFilter();
+}
+
+function remove(name) {
+  setRecords(records().filter(r => r.name !== name));
+  sideEffect("delete:" + name);
+  applyFilter();
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target.closest("[data-testid=hg-add]")) openDialog(null);
+  if (e.target.closest("[data-testid=hg-cancel]")) showDialog(false);
+  if (e.target.closest("[data-testid=hg-save]")) save();
+  const ed = e.target.closest("[data-action=hg-edit]");
+  if (ed) openDialog(ed.closest("[role=row]").dataset.rowId);
+  const del = e.target.closest("[data-action=hg-delete]");
+  if (del) remove(del.closest("[role=row]").dataset.rowId);
+});
+
+applyFilter();
+</script>
