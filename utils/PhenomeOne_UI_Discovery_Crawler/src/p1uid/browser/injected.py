@@ -59,6 +59,56 @@ function isVisible(el) {
   } catch (e) { return false; }
 }
 
+// Roles that describe layout or containment rather than an action. An element
+// carrying one of these may still BE a control in a design system that never
+// set a role - see `isPointerLeaf`.
+const LAYOUT_ROLES = new Set(['cell','gridcell','listitem','row','columnheader',
+  'rowheader','generic','presentation','none','']);
+
+// A control with no semantics at all.
+//
+// Measured on real PhenomeOne (2026-08-27): the entire research-group tree -
+// Mine, **Tomato, Tomato Demo, Eggplant, Pepper-ID1533, Sorghum - is rendered by
+// dhtmlxTree as `<td class="dhxTextCell standartTreeRow"><span>Tomato</span></td>`
+// with no role, no href, no tabindex and no test id. Discovery collected 5
+// elements on that screen and none of them was navigation, so an autonomous
+// crawl had literally nothing to click.
+//
+// `cursor: pointer` is the signal a design system leaves behind when it makes
+// something clickable. The cheap filters run first because reading a computed
+// style forces layout work, and this is evaluated over the whole document.
+function isPointerLeaf(el) {
+  const tag = el.tagName;
+  if (tag !== 'DIV' && tag !== 'SPAN' && tag !== 'TD' && tag !== 'LI'
+      && tag !== 'P' && tag !== 'I' && tag !== 'A' && tag !== 'B') return false;
+  if (el.children.length > 1) return false;             // a wrapper, not a leaf
+  if (!directText(el) && !(el.children.length === 1 && directText(el.firstElementChild)))
+    return false;                                       // unlabelled: nothing to target
+  try {
+    if (el.querySelector('a[href],button,input,select,textarea,[role]')) return false;
+    if (win(el).getComputedStyle(el).cursor !== 'pointer') return false;
+  } catch (e) { return false; }
+  // Prefer the INNERMOST such node. dhtmlx wraps every row twice, and harvesting
+  // both would make each row's locator match 2 elements - which the crawler
+  // then skips as ambiguous, so the whole tree would still be unreachable.
+  const kid = el.firstElementChild;
+  if (kid && el.children.length === 1 && directText(kid)) {
+    try {
+      if (win(kid).getComputedStyle(kid).cursor === 'pointer') return false;
+    } catch (e) { }
+  }
+  return isVisible(el) && !isDisabled(el);
+}
+
+// Signature for "how many things on this page look exactly like this one".
+// Corroboration: a lone pointer-div could be anything, but one row among many
+// identical rows is a list, and a list is navigation.
+function leafSignature(el) {
+  const cls = (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/)
+    .filter(Boolean).sort().join('.');
+  return el.tagName.toLowerCase() + (cls ? '.' + cls : '');
+}
+
 function isDisabled(el) {
   if (el.disabled === true) return true;
   if (el.getAttribute('aria-disabled') === 'true') return true;
@@ -228,6 +278,9 @@ function classify(el, role) {
     const n = ((el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('class') || '')).toLowerCase();
     return /pagin|pager/.test(n) ? 'pagination' : 'navigation';
   }
+  // A design-system control that declared no semantics. Checked before the
+  // layout role wins, or a dhtmlxTree row would be reported as a table cell.
+  if (LAYOUT_ROLES.has(role) && isPointerLeaf(el)) return 'clickable';
   if (role) return role;
   if (el.hasAttribute('contenteditable')) return 'textarea';
   if (el.hasAttribute('onclick')) return 'clickable';
@@ -450,7 +503,7 @@ function harvest(rootDoc, limit) {
       if (el.shadowRoot && item.depth < 5) stack.push({ root: el.shadowRoot, depth: item.depth + 1 });
       const tag = el.tagName;
       if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'LINK' || tag === 'META' || tag === 'HEAD') continue;
-      try { if (!el.matches(SEL)) continue; } catch (e) { continue; }
+      try { if (!el.matches(SEL) && !isPointerLeaf(el)) continue; } catch (e) { continue; }
       if (tag === 'TABLE' && isLayoutTable(el)) continue;
       els.push(el);
       if (els.length >= limit) return { els: els, scanned: scanned };
@@ -505,6 +558,9 @@ function elementRecord(el, frame) {
   if (el.required || el.getAttribute('aria-required') === 'true') rec.required = true;
   actionInfo(el, rec);
   if (rec.type === 'grid' || rec.type === 'table') rec.grid = gridMeta(el);
+  // Shape signature for a semantics-free control, so the classifier can ask
+  // 'how many things on this page look exactly like this?' before trusting it.
+  if (rec.type === 'clickable') rec.leafSig = leafSignature(el);
   if (el.tagName === 'SELECT') {
     rec.options = Array.from(el.options).slice(0, 25).map(o => clip(o.textContent, 60)).filter(Boolean);
   }
@@ -587,6 +643,15 @@ function collect(opts) {
   }
   _nameCache = null;
   _headCache = null;
+  // Corroboration pass: count how many harvested controls share each shape. One
+  // pointer-div could be anything; one row among seven identical rows is a list.
+  const shapes = new Map();
+  for (const r of records) {
+    if (r.leafSig) shapes.set(r.leafSig, (shapes.get(r.leafSig) || 0) + 1);
+  }
+  for (const r of records) {
+    if (r.leafSig) r.leafSiblings = shapes.get(r.leafSig) || 1;
+  }
   const keep = records.filter(r => r.type && (r.interactive || r.container));
   return {
     structure: structureOf(records),

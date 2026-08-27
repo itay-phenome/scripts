@@ -372,6 +372,89 @@ def find(pairs, testid=None, name=None):
     return None, None
 
 
+def semantics_free_tree() -> None:
+    """A navigation tree with no ARIA at all must still be navigable.
+
+    Reproduced from the DOM probe of real PhenomeOne (2026-08-27): dhtmlxTree
+    renders every research group as
+    `<td class="dhxTextCell standartTreeRow"><span>Tomato</span></td>` - no role,
+    no href, no tabindex, no test id. Discovery collected 5 elements on that
+    whole screen, none of them navigation, so an autonomous crawl had nothing to
+    click on any page of the application.
+
+    The negative cases carry equal weight: corroboration is what makes this safe,
+    so a lone pointer node and a pair of them must stay UNKNOWN, and a
+    destructive label must stay DANGEROUS however list-shaped it is.
+    """
+    import queue
+    from p1uid.browser.controller import Engine
+    from p1uid.discovery import scanner
+    from p1uid.logging_setup import setup
+    from serve_mock import MockServer
+
+    setup(debug="--debug" in sys.argv)
+    print("\n" + "=" * 62 + "\nINTEGRATION: a tree with no semantics\n" + "=" * 62)
+    with MockServer() as server:
+        root = server.url.rsplit("/app/", 1)[0] + "/"
+        engine = Engine(queue.Queue(), headless="--headed" not in sys.argv)
+        engine.start()
+        try:
+            engine.call(lambda: engine.open_url(root + "tree.html"), timeout=120)
+            res = engine.call(lambda: scanner.scan_page(
+                engine.page, engine.store, origin=engine.origin,
+                validate_limit=300, keep_rows=True), timeout=180)
+            check("the page was scanned", res is not None and res.elements > 5,
+                  str(res.elements if res else 0))
+            rows = {}
+            for _f, el, loc in res.rows:
+                name = (el.get("name") or "").strip()
+                if name:
+                    rows[name] = (el, loc, classify(el, origin=engine.origin))
+
+            tree = ["Tomato Demo", "Eggplant", "Pepper-ID1533", "Sorghum", "Watermelon"]
+            found = [n for n in tree if n in rows]
+            check("every tree row was discovered", found == tree, f"found {found}")
+            check("they are recognised as clickable controls",
+                  all(rows[n][0].get("type") == "clickable" for n in found),
+                  str([(n, rows[n][0].get("type")) for n in found]))
+            check("corroboration counted the shape",
+                  all((rows[n][0].get("leafSiblings") or 0) >= 3 for n in found),
+                  str([(n, rows[n][0].get("leafSiblings")) for n in found]))
+            check("they are SAFE_NAVIGATION and auto-clickable",
+                  all(rows[n][2].classification == SAFE_NAVIGATION and rows[n][2].auto_clickable
+                      for n in found),
+                  str([(n, rows[n][2].classification) for n in found]))
+            check("each row has a UNIQUE locator (the wrapper was not harvested too)",
+                  all(rows[n][1].matches == 1 for n in found),
+                  str([(n, rows[n][1].matches) for n in found]))
+            check("the locator targets the row by its text",
+                  all("Sorghum" in rows["Sorghum"][1].js for _ in [0]), rows["Sorghum"][1].js)
+
+            # --- corroboration is load-bearing -----------------------------
+            check("a LONE pointer node stays UNKNOWN",
+                  "Mystery control" in rows
+                  and rows["Mystery control"][2].classification == UNKNOWN
+                  and not rows["Mystery control"][2].auto_clickable,
+                  str(rows.get("Mystery control", ("missing",))[-1:]))
+            pair = [n for n in ("First thing", "Second thing") if n in rows]
+            check("exactly TWO of a shape is not a list either",
+                  len(pair) == 2 and all(rows[n][2].classification == UNKNOWN for n in pair),
+                  str([(n, rows[n][2].classification) for n in pair]))
+
+            # --- the vetoes still win --------------------------------------
+            check("a destructive label stays DANGEROUS however list-shaped",
+                  "Delete Sorghum" in rows
+                  and rows["Delete Sorghum"][2].classification == DANGEROUS
+                  and not rows["Delete Sorghum"][2].auto_clickable,
+                  str(rows.get("Delete Sorghum", ("missing",))[-1:]))
+            check("no auto-clickable row carries a blocking flag",
+                  not [n for n, (_e, _l, v) in rows.items()
+                       if v.auto_clickable and set(v.flags) & safety.BLOCKING_FLAGS],
+                  str([n for n, (_e, _l, v) in rows.items() if v.auto_clickable]))
+        finally:
+            engine.shutdown_blocking()
+
+
 def integration() -> None:
     from p1uid.browser.controller import Engine
     from p1uid.discovery import stability
@@ -548,6 +631,7 @@ def main() -> int:
                test_state_and_context, test_invariants, test_no_networkidle):
         fn()
     if "--unit" not in sys.argv:
+        semantics_free_tree()
         integration()
     print(f"\n{'=' * 62}\n{count - len(failures)}/{count} safety checks passed")
     if failures:

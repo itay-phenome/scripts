@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PhenomeOne (semantics-free tree)</title>
+<style>
+ body{font:14px/1.6 Segoe UI,sans-serif;margin:0;padding:14px 18px;color:#222}
+ h1{font-size:19px;margin:0 0 8px}
+ h2{font-size:13px;margin:14px 0 4px;color:#345}
+ .muted{color:#666;font-size:12px}
+ /* dhtmlxTree renders rows as table cells with a pointer cursor and no ARIA at
+    all. These class names are the ones the real application uses. */
+ .dhxTextCell{padding:2px 8px;cursor:pointer}
+ .standartTreeRow{cursor:pointer}
+ .selectedTreeRow{cursor:pointer;font-weight:600;background:#eef5ff}
+ .lonely{cursor:pointer;display:inline-block;padding:4px 8px;border:1px solid #ccc}
+ .pair{cursor:pointer;display:inline-block;padding:4px 8px;margin-right:6px}
+ #panel{margin-top:12px;padding:8px;border:1px solid #ddd;max-width:520px}
+</style>
+
+<!--
+  The real PhenomeOne navigation tree, reproduced from the DOM probe of
+  eksdemo-helm on 2026-08-27:
+
+      <td class="dhxTextCell standartTreeRow"><span class="standartTreeRow">Tomato</span></td>
+
+  No role, no href, no tabindex, no test id - only `cursor: pointer` and a text
+  label. Discovery collected five elements on that entire screen and none of
+  them was navigation, so an autonomous crawl had nothing to click.
+
+  The negative cases matter as much as the tree: a lone pointer node and a pair
+  of them must STAY unknown, and a destructive label must stay dangerous however
+  list-shaped it is.
+-->
+
+<h1>Research groups</h1>
+<p class="muted" id="status">ready</p>
+
+<h2>1. A tree with no semantics (must become clickable)</h2>
+<table id="tree"><tbody>
+  <tr><td class="dhxTextCell standartTreeRow"><span class="selectedTreeRow">Mine</span></td></tr>
+  <tr><td class="dhxTextCell standartTreeRow"><span class="standartTreeRow">Tomato Demo</span></td></tr>
+  <tr><td class="dhxTextCell standartTreeRow"><span class="standartTreeRow">Eggplant</span></td></tr>
+  <tr><td class="dhxTextCell standartTreeRow"><span class="standartTreeRow">Pepper-ID1533</span></td></tr>
+  <tr><td class="dhxTextCell standartTreeRow"><span class="standartTreeRow">Sorghum</span></td></tr>
+  <tr><td class="dhxTextCell standartTreeRow"><span class="standartTreeRow">Watermelon</span></td></tr>
+</tbody></table>
+
+<h2>2. A destructive row, same shape (must stay DANGEROUS)</h2>
+<table id="danger"><tbody>
+  <tr><td class="dhxTextCell standartTreeRow"><span class="standartTreeRow">Delete Sorghum</span></td></tr>
+</tbody></table>
+
+<h2>3. A lone pointer node (must stay UNKNOWN - no corroboration)</h2>
+<div class="lonely" id="lonely">Mystery control</div>
+
+<h2>4. Exactly two of a shape (still not a list)</h2>
+<div><span class="pair">First thing</span><span class="pair">Second thing</span></div>
+
+<div id="panel">Nothing selected.</div>
+
+<script>
+// Clicking a row only changes this page's own state - it is navigation, and it
+// is recorded so a test can prove the crawler actually reached the rows.
+const panel = document.getElementById("panel");
+const seen = [];
+document.addEventListener("click", (e) => {
+  const row = e.target.closest("#tree .standartTreeRow, #danger .standartTreeRow, .lonely, .pair");
+  if (!row) return;
+  const label = (row.textContent || "").trim();
+  seen.push(label);
+  panel.textContent = "Selected: " + label;
+  // A hash change, so selecting a group is a real UI state the crawler can see.
+  if (row.closest("#tree")) location.hash = "group=" + encodeURIComponent(label);
+  document.getElementById("status").textContent = seen.length + " row(s) activated";
+});
+Object.defineProperty(window, "__activated", { get() { return seen.slice(); } });
+</script>

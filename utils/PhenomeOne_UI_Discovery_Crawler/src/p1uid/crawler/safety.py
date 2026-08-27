@@ -191,6 +191,11 @@ _INPUT_TYPES = frozenset({"textbox", "searchbox", "textarea", "combobox", "listb
                           "option", "password"})
 _OPAQUE_TYPES = frozenset({"clickable", "focusable", "testid-element", ""})
 
+# How many same-shaped controls make a list. Three is the smallest number
+# that cannot be a coincidence of layout, and a two-item menu is better left
+# UNKNOWN than guessed at.
+_LIST_SHAPE_MIN = 3
+
 # input[type=...] values that submit or reset a form when clicked.
 _SUBMIT_INPUTS = frozenset({"submit", "image"})
 _RESET_INPUTS = frozenset({"reset"})
@@ -426,6 +431,23 @@ def _classify(el: dict[str, Any], origin: str = "") -> Verdict:
         flags.append(FLAG_UNLABELLED)
         return _verdict(UNKNOWN, reasons + ["no accessible name to reason about"], flags, "unnamed")
     if el_type in _OPAQUE_TYPES:
+        # A semantics-free control, but not necessarily unknowable. When the page
+        # contains MANY controls of the same shape, they are a list or a tree -
+        # and a row in a list navigates, it does not act.
+        #
+        # Measured on real PhenomeOne (2026-08-27): the research-group tree is
+        # dhtmlxTree markup with no role, href, tabindex or test id, so every row
+        # was UNKNOWN and an autonomous crawl had nothing to click on any screen.
+        #
+        # Every veto above still applies and has already run: a dangerous verb in
+        # the label, form participation, a POST, cross-origin, hidden, disabled.
+        # This only decides the leftover case of a labelled row among peers.
+        siblings = int(el.get("leafSiblings") or 0)
+        if el_type == "clickable" and siblings >= _LIST_SHAPE_MIN and own_label:
+            return _verdict(SAFE_NAVIGATION,
+                            reasons + [f"one of {siblings} controls of the same shape: a list or "
+                                       f"tree row, which navigates rather than acts"],
+                            flags, "list-shape")
         return _verdict(UNKNOWN, reasons + [f"opaque control ({el_type or 'no role'})"],
                         flags, el_type or "no-role")
 
