@@ -200,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     paths.ensure_dirs()
     setup(debug=args.debug)
     if args.version:
-        print(f"{paths.APP_NAME} 1.4.0")
+        print(f"{paths.APP_NAME} 1.5.0")
         return 0
 
     if args.diff:

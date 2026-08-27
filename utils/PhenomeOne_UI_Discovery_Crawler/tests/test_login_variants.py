@@ -57,6 +57,9 @@ def reset_session(engine: Engine, root: str) -> None:
         await engine.page.goto(root, wait_until="domcontentloaded")
         await engine.page.evaluate("() => { try { sessionStorage.clear(); "
                                   "localStorage.clear(); } catch (e) {} }")
+        # The mock authenticates with a cookie now, the way a real application
+        # does, so clearing storage alone no longer signs it out.
+        await engine.context.clear_cookies()
     try:
         engine.call(lambda: _clear(), timeout=60)
     except Exception:

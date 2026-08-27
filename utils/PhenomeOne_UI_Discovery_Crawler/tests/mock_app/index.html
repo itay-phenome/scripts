@@ -154,11 +154,19 @@ document.addEventListener("submit", (e) => {
 }, true);
 
 /* --------------------------------------------------- session state
-   A real app keeps a cookie, so reloading the root stays signed in. The mock
-   mirrors that with sessionStorage - without it, every crawler replay would
-   land back on the login form. */
+   A COOKIE, like a real application - and deliberately not sessionStorage.
+   Playwright's storage_state() captures cookies and localStorage but NOT
+   sessionStorage, so a sessionStorage marker could never survive being saved
+   and reloaded into a fresh browser context. Since "sign in once, then every
+   later run opens already authenticated" is the supported flow, the mock has to
+   authenticate the way real applications do or the flow is untestable. */
 const AUTH_KEY = "p1uidMockAuth";
-const isAuthed = () => sessionStorage.getItem(AUTH_KEY) === "1";
+const isAuthed = () => document.cookie.split(";").some(
+  (c) => c.trim() === AUTH_KEY + "=1");
+const setAuthed = (on) => {
+  document.cookie = AUTH_KEY + (on ? "=1; path=/; SameSite=Lax"
+                                   : "=; path=/; Max-Age=0; SameSite=Lax");
+};
 
 const $ = (s) => document.querySelector(s);
 const main = () => $("#main");
@@ -167,7 +175,7 @@ const main = () => $("#main");
 $("#login-form").addEventListener("submit", (e) => {
   e.preventDefault();
   if (!$("#user").value || !$("#pw").value) { $("#login-error").classList.remove("hidden"); return; }
-  sessionStorage.setItem(AUTH_KEY, "1");
+  setAuthed(true);
   enterApp();
   if (AUTODRIVE) autodrive();
 });
@@ -430,7 +438,7 @@ function autodrive() {
 // reach this. Guarded by the classifier, proven by tests.
 document.addEventListener("click", (e) => {
   if (e.target.closest("[data-testid=admin-logout]")) {
-    sessionStorage.removeItem(AUTH_KEY);
+    setAuthed(false);
     location.href = "/app/";
     return;
   }

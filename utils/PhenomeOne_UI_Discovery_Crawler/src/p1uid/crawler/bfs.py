@@ -151,6 +151,7 @@ class SafeCrawler:
         # Browsing contexts that appeared during the action currently in flight.
         # Collected by the popup listener, classified in `_click`.
         self._pending_pages: list[Any] = []
+        self._nothing_clickable = False
         self.registry: surfaces.SurfaceRegistry | None = None
         # Extra origins the caller declares as part of the application.
         self.extra_origins: tuple[str, ...] = ()
@@ -246,7 +247,75 @@ class SafeCrawler:
             out.append(_Candidate(key, el, loc, frame, verdict))
         out.sort(key=lambda c: (_TYPE_ORDER.get(c.element.get("type", ""), 9),
                                (c.element.get("name") or "").lower(), c.key))
+        if not out and res.rows:
+            self._explain_nothing_clickable(res)
+            self._nothing_clickable = True      # probe once, from the async caller
         return out[: self.limits.per_state_actions]
+
+    async def _probe_missed_clickables(self) -> None:
+        """Report clickable-looking nodes the harvester did not collect.
+
+        Only runs when a state offered nothing, and only then: it is a diagnostic
+        for an application whose controls carry no ARIA semantics, not something
+        to pay for on every scan.
+        """
+        try:
+            missed = await self._page.evaluate(
+                "() => window.__p1uidCore ? window.__p1uidCore.missedClickables(18) : []")
+        except Exception:
+            return
+        if not missed:
+            log.warning("No un-harvested clickable-looking nodes either: this screen "
+                        "genuinely offers nothing this crawler can act on")
+            return
+        log.warning("%d clickable-looking node(s) were NOT harvested (cursor:pointer, "
+                    "no role/href/testid). These are what the application navigates by:",
+                    len(missed))
+        for m in missed:
+            log.warning("      <%s> role=%r tabindex=%r kids=%s text=%r class=%r",
+                        m.get("tag"), m.get("role"), m.get("tabindex"), m.get("kids"),
+                        m.get("text"), m.get("cls"))
+
+    def _explain_nothing_clickable(self, res: Any) -> None:
+        """Say WHY a state offered nothing, in the log, once per state.
+
+        "0 safe action(s) of 80 elements" is not actionable, and the stored UI map
+        cannot answer it either: persisted records drop `attrs` entirely and keep
+        only part of `link`, so replaying the classifier over the map gives a
+        different - more permissive - answer than the live run. The verdicts have
+        to be reported where they are made.
+
+        Metadata only: element names, types and rule names. No field values.
+        """
+        by_class: dict[str, int] = {}
+        by_frame: dict[str, int] = {}
+        reasons: dict[str, int] = {}
+        samples: list[str] = []
+        for frame, el, loc in res.rows:
+            verdict = safety.classify(el, origin=self.engine.origin)
+            by_class[verdict.classification] = by_class.get(verdict.classification, 0) + 1
+            try:
+                furl = frame.url or ""
+            except Exception:
+                furl = ""
+            host = furl.split("//", 1)[-1].split("/", 1)[0] or "(main)"
+            by_frame[host] = by_frame.get(host, 0) + 1
+            why = verdict.matched or (verdict.reasons[-1] if verdict.reasons else "?")
+            reasons[f"{verdict.classification}/{why}"] = \
+                reasons.get(f"{verdict.classification}/{why}", 0) + 1
+            if len(samples) < 14:
+                name = (el.get("name") or el.get("directText") or "")[:34]
+                samples.append(f"      {verdict.classification[:4]:4} {el.get('type',''):10} "
+                               f"{name!r:36} {host[:34]:34} {why}")
+        log.warning(
+            "Nothing was clickable in this state. Where the elements came from: %s",
+            ", ".join(f"{k}={v}" for k, v in sorted(by_frame.items(), key=lambda kv: -kv[1])))
+        log.warning("Verdicts: %s",
+                    ", ".join(f"{k}={v}" for k, v in sorted(by_class.items())))
+        log.warning("Why, by rule: %s",
+                    ", ".join(f"{k}={v}" for k, v in
+                              sorted(reasons.items(), key=lambda kv: -kv[1])[:10]))
+        log.warning("Sample elements (metadata only):\n%s", "\n".join(samples))
 
     # --------------------------------------------------------------- moving
     async def _goto_root(self) -> bool:
@@ -427,6 +496,9 @@ class SafeCrawler:
             visited.add(state_id)
             self.result.states_visited = len(visited)
             cands = self._candidates(res)
+            if self._nothing_clickable:
+                self._nothing_clickable = False
+                await self._probe_missed_clickables()
             log.info("Exploring %s (depth %d): %d safe action(s) of %d elements",
                      state_id, len(path), len(cands), res.elements)
 

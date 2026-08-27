@@ -75,14 +75,42 @@ async def ensure_core(frame: Any) -> bool:
         return False
 
 
-def _scannable_frames(page: Any) -> list[Any]:
+def _same_site(a: str, b: str) -> bool:
+    """Same scheme+host+port. Deliberately strict - see `_scannable_frames`."""
+    from urllib.parse import urlsplit
+    pa, pb = urlsplit(a or ""), urlsplit(b or "")
+    return bool(pa.scheme) and (pa.scheme, pa.netloc) == (pb.scheme, pb.netloc)
+
+
+def _scannable_frames(page: Any, origin: str = "") -> list[Any]:
+    """Frames worth mapping: the main frame, plus same-origin children.
+
+    A cross-origin child frame is skipped for DISCOVERY. Measured on real
+    PhenomeOne (2026-08-27): an embedded support widget on
+    `knowledge-base.phenome-networks.com` contributed **75 of 80** elements on one
+    screen and 75 of 107 on another. Every one of them is cross-origin, so the
+    crawler can never click it and no generated test can ever target it - the
+    map was mostly a third-party help centre, and the application's own controls
+    were a rounding error inside it.
+
+    This does not affect login detection, which still searches every frame: an
+    identity provider legitimately lives in a cross-origin iframe. It only stops
+    somebody else's site being recorded as part of this application.
+    """
     frames = [page.main_frame]
+    skipped: list[str] = []
     for f in page.frames:
         if f is page.main_frame or len(frames) >= MAX_FRAMES:
             continue
         url = (f.url or "")
-        if url.startswith("http") and not f.is_detached():
-            frames.append(f)
+        if not url.startswith("http") or f.is_detached():
+            continue
+        if origin and not _same_site(url, origin):
+            skipped.append(url[:80])
+            continue
+        frames.append(f)
+    if skipped:
+        log.debug("Not mapping %d cross-origin frame(s): %s", len(skipped), "; ".join(skipped[:3]))
     return frames
 
 
@@ -130,7 +158,7 @@ async def scan_page(page: Any, store, origin: str = "", validate: bool = True,
     # The settle wait is reported separately: folding it into `collect` would
     # make the scan look 250 ms slower than it is.
     t0 = time.perf_counter()
-    frames = _scannable_frames(page)
+    frames = _scannable_frames(page, origin)
     collected: list[tuple[Any, dict[str, Any]]] = []
     for f in frames:
         data = await collect_frame(f, max_elements)

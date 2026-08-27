@@ -79,7 +79,7 @@ class App(tk.Tk):
         self.var_url = tk.StringVar(value=self._settings.get("url", ""))
         self.var_user = tk.StringVar(value=self._settings.get("username", ""))
         self.var_pass = tk.StringVar()
-        self.var_remember = tk.BooleanVar(value=bool(self._settings.get("rememberSession", False)))
+        self.var_remember = tk.BooleanVar(value=bool(self._settings.get("rememberSession", True)))
         self.var_headless = tk.BooleanVar(value=False)
         self.var_auth = tk.StringVar(value="Not connected")
         self.var_browser = tk.StringVar(value="Browser: stopped")
@@ -90,6 +90,8 @@ class App(tk.Tk):
         # Conservative default: a first crawl of an unknown application should
         # be small enough to read the summary before widening it.
         self.var_crawl_actions = tk.StringVar(value="20")
+        # The point of the tool: get authenticated, then explore on its own.
+        self.var_autocrawl = tk.BooleanVar(value=True)
         self.stats = {k: tk.StringVar(value="0") for k in
                       ("states", "elements", "paths", "high", "medium", "low")}
 
@@ -119,11 +121,18 @@ class App(tk.Tk):
                                                                        sticky="ew", pady=2)
         btns = ttk.Frame(conn)
         btns.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(8, 0))
-        self.b_login = ttk.Button(btns, text="LOGIN", command=self.on_login)
+        # The supported way in: reuse the stored authenticated session, or let the
+        # user sign in once by hand and store it. Reading an arbitrary login form
+        # and typing into it is a guessing game that a two-step form wins.
+        self.b_connect = ttk.Button(btns, text="CONNECT", command=self.on_connect)
+        self.b_connect.pack(side="left")
+        ttk.Checkbutton(btns, text="then Safe Crawl",
+                        variable=self.var_autocrawl).pack(side="left", padx=(8, 12))
+        self.b_login = ttk.Button(btns, text="Try form login", command=self.on_login)
         self.b_login.pack(side="left")
         self.b_manual = ttk.Button(btns, text="Manual Login", command=self.on_manual_login)
         self.b_manual.pack(side="left", padx=6)
-        ttk.Checkbutton(btns, text="Remember authenticated session",
+        ttk.Checkbutton(btns, text="Remember session",
                         variable=self.var_remember).pack(side="left", padx=12)
         self.cb_headless = ttk.Checkbutton(btns, text="Headless", variable=self.var_headless)
         self.cb_headless.pack(side="left")
@@ -286,6 +295,21 @@ class App(tk.Tk):
         eng = self._ensure_engine()
         eng.submit(lambda: eng.op_manual_login(url), op="manual_login")
 
+    def on_connect(self) -> None:
+        """Reuse the stored session, or take one manual sign-in and store it."""
+        url = self.var_url.get().strip()
+        if not url:
+            messagebox.showwarning(paths.APP_NAME, "Enter the PhenomeOne URL first.")
+            return
+        self._save_settings()
+        eng = self._ensure_engine()
+        if eng.sessions.exists():
+            self._append("INFO", "Opening with the stored session; checking it is still valid")
+        else:
+            self._append("INFO", "No stored session yet - sign in once in the browser "
+                                 "window and it will be saved for next time")
+        eng.submit(lambda: eng.op_connect(url), op="manual_login")
+
     def on_scan(self) -> None:
         eng = self._ensure_engine()
         eng.submit(lambda: eng.op_scan(), op="scan")
@@ -315,6 +339,17 @@ class App(tk.Tk):
                 "It never clicks Save, Delete, Submit, Import, Logout or anything it does not "
                 "recognise, never accepts a confirmation dialog, and never leaves this site.\n\n"
                 "Continue?"):
+            return
+        self._start_crawl_now()
+
+    def _start_crawl_now(self) -> None:
+        """Start the crawl with the budget in the box. No dialog.
+
+        Reached either from the SAFE CRAWL button (which asks first) or straight
+        after connecting, when the user has ticked "then Safe Crawl" - the whole
+        point being that authentication hands over to autonomous exploration.
+        """
+        if self.training or self.crawling:
             return
         try:
             max_actions = max(1, min(2000, int(str(self.var_crawl_actions.get()).strip())))
@@ -410,6 +445,13 @@ class App(tk.Tk):
                 self._refresh_stats(ev.get("counts"))
         elif t == "training-progress":
             self._refresh_stats(ev.get("counts"))
+        elif t == "connected":
+            # Authenticated, by stored session or by one manual sign-in. This is
+            # the handover point: from here the tool is meant to work on its own,
+            # with no further navigation by the user.
+            if ev.get("ready") and self.var_autocrawl.get() and not self.crawling:
+                self._append("INFO", "Authenticated - starting Safe Crawl automatically")
+                self.after(1500, self._start_crawl_now)
         elif t == "crawl":
             self.crawling = bool(ev.get("active"))
             if self.crawling:

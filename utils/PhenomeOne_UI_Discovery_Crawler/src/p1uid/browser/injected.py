@@ -665,6 +665,43 @@ function visibleSignature() {
   return 'v=' + n + '|s=' + surfaces;
 }
 
+// Diagnostic: things a person would obviously click that we did NOT harvest.
+//
+// Measured on real PhenomeOne (2026-08-27): a whole application screen yielded
+// 5 harvested elements, none of them navigation, because a Dojo UI renders its
+// tree and toolbars as <div>/<span> with JavaScript handlers - matching none of
+// the selectors in SEL. `cursor: pointer` is the cheapest reliable signal that
+// a design system considers something clickable, so this reports those, with
+// enough shape (tag, class, role, tabindex) to decide what rule would catch
+// them. Text is clipped and no field value is ever read.
+function missedClickables(limit) {
+  const out = [];
+  const max = limit || 25;
+  let scanned = 0;
+  for (const el of document.querySelectorAll('div,span,li,td,i,a')) {
+    if (out.length >= max || scanned > 4000) break;
+    scanned++;
+    try {
+      if (el.matches(SEL)) continue;           // already collected
+      if (!isVisible(el)) continue;
+      const st = win(el).getComputedStyle(el);
+      if (!st || st.cursor !== 'pointer') continue;
+      // Only leaf-ish nodes: a clickable wrapper around a real control is not
+      // the thing we are missing.
+      if (el.querySelector('a[href],button,input,select,textarea')) continue;
+      out.push({
+        tag: el.tagName.toLowerCase(),
+        cls: clip(typeof el.className === 'string' ? el.className : '', 70),
+        text: clip(directText(el) || contentText(el), 40),
+        role: el.getAttribute('role') || '',
+        tabindex: el.getAttribute('tabindex') || '',
+        kids: el.children.length
+      });
+    } catch (e) { }
+  }
+  return out;
+}
+
 function checkState(reason) {
   const sig = domSignature();
   if (sig === state.sig) return;
@@ -832,6 +869,7 @@ window.__p1uidCore = {
   waitStable: waitStable,
   signature: function () { return domSignature(); },
   visibleSignature: function () { return visibleSignature(); },
+  missedClickables: function (n) { return missedClickables(n); },
   startObserving: function () {
     installObservers();
     state.observing = true;

@@ -40,7 +40,7 @@ class Engine:
     """Owns the browser, the UI map and the training session."""
 
     def __init__(self, events: "queue.Queue[dict[str, Any]]", *,
-                 headless: bool = False, remember_session: bool = False,
+                 headless: bool = False, remember_session: bool = True,
                  validate_limit: int = 500, login_wait_s: float = 20.0,
                  generate_tests: bool = False) -> None:
         self.events = events
@@ -214,7 +214,9 @@ class Engine:
             # package deliberately does not ship.
             launch_kwargs["channel"] = "chromium"
         self.browser = await self.playwright.chromium.launch(**launch_kwargs)
-        storage = self.sessions.load() if self.remember_session else None
+        # The stored session is the supported way in, so it is loaded whenever
+        # one exists - not only when a checkbox was ticked before launching.
+        storage = self.sessions.load() if self.remember_session and self.sessions.exists() else None
         self.context = await self.browser.new_context(
             no_viewport=not self.headless,
             storage_state=storage,
@@ -280,10 +282,17 @@ class Engine:
         frame, fields = await auth_login.find_login_form(self.page, timeout_s=self.login_wait_s)
 
         if frame is None and self.remember_session and self.sessions.exists():
-            log.info("No login form present - the saved session appears to be still valid")
-            self.authenticated = True
-            self.emit(type="status", auth="Connected (saved session)")
-            return
+            # Verify, do not assume. "No login form and I hold a saved session"
+            # was inferred to mean "signed in", which is wrong for any page that
+            # simply has no form - a dashboard, an error page, a docs site.
+            if await self.session_is_valid():
+                self.authenticated = True
+                log.info("No login form present and the application is rendering - "
+                         "the saved session is still valid")
+                self.emit(type="status", auth="Connected (saved session)")
+                return
+            log.info("No login form present, but the application is not rendering either - "
+                     "not treating this as signed in")
 
         if frame is None:
             # A landing page may hide the form behind a single "Sign in" entry point.
@@ -417,6 +426,108 @@ class Engine:
         await self._maybe_save_session()
         self.emit(type="status", auth="Connected (manual)")
 
+    async def session_is_valid(self, wait_s: float = 15.0) -> bool:
+        """Is this browser looking at the signed-in application?
+
+        Two conditions, both required: no visible password field anywhere (a
+        sign-in gate is not the application, however app-like it looks), and the
+        application actually rendering. The wait matters - PhenomeOne has taken
+        up to 38 s to paint after a load, and judging it on the first look was
+        what made "already signed in" undetectable before.
+        """
+        if self.page is None or self.page.is_closed():
+            return False
+        try:
+            for frame in list(self.page.frames):
+                try:
+                    fields = await auth_login.read_fields(frame)
+                except Exception:
+                    continue
+                if any(f["type"] == "password" and f["visible"] and not f["disabled"]
+                       for f in fields.get("inputs", [])):
+                    return False
+        except Exception:
+            return False
+        return await auth_login.looks_authenticated(self.page, wait_s=wait_s)
+
+    async def op_connect(self, url: str, timeout_s: int = 600) -> bool:
+        """Get to an authenticated application, by saved session or by hand.
+
+        This is the supported path (user, 2026-08-27): "authenticated browser
+        session -> autonomous full-site crawl". Reading somebody's login form and
+        typing into it is a guessing game that a two-step or scripted form wins;
+        a stored Playwright storage_state is deterministic.
+
+        Returns True when the application is open and authenticated, so the
+        caller can start crawling without any further human navigation.
+        """
+        self._manual_gen += 1
+        gen = self._manual_gen
+        await self.ensure_browser()
+        had_session = self.sessions.exists()
+        await self.open_url(url)
+
+        # 1. Did the stored session carry us straight in?
+        if await self.session_is_valid():
+            self.authenticated = True
+            await self.save_session()
+            log.info("Authenticated%s - ready to crawl",
+                     " with the saved session" if had_session else "")
+            self.emit(type="status",
+                      auth="Connected (saved session)" if had_session else "Connected")
+            self.emit(type="connected", ready=True)
+            return True
+
+        if had_session:
+            log.info("The saved session is no longer valid; sign in once more and it "
+                     "will be refreshed")
+            self.emit(type="status", auth="Saved session expired - sign in once")
+        else:
+            log.info("No saved session yet; sign in once and it will be stored")
+            self.emit(type="status", auth="Sign in once in the browser window")
+
+        # 2. Wait for the human. No form parsing, no typing: the only signal is
+        #    the application becoming reachable.
+        log.info("Waiting up to %d s for you to sign in - the window is open", timeout_s)
+        self._cancel_manual = False
+        self._manual_active = True
+        try:
+            deadline = time.monotonic() + timeout_s
+            while time.monotonic() < deadline:
+                if self._cancel_manual or gen != self._manual_gen:
+                    log.info("Sign-in wait cancelled")
+                    return False
+                if self.page is None or self.page.is_closed():
+                    self.emit(type="status", auth="Browser closed before sign-in")
+                    return False
+                if await self.session_is_valid(wait_s=0.0):
+                    self.authenticated = True
+                    await self.save_session()
+                    log.info("Signed in - session stored, ready to crawl")
+                    self.emit(type="status", auth="Connected (signed in)")
+                    self.emit(type="connected", ready=True)
+                    return True
+                await asyncio.sleep(1.0)
+        finally:
+            if gen == self._manual_gen:
+                self._manual_active = False
+
+        log.warning("Not signed in within %d s", timeout_s)
+        self.emit(type="status", auth="Not connected")
+        return False
+
+    async def save_session(self) -> bool:
+        """Store the authenticated state, DPAPI-encrypted. Never a password."""
+        try:
+            state = await self.context.storage_state()
+        except Exception as exc:
+            log.warning("Could not capture session state: %s", type(exc).__name__)
+            return False
+        ok = self.sessions.save(state)
+        if ok:
+            log.info("Authenticated session stored (encrypted) for the next run")
+        return ok
+
     async def _maybe_save_session(self) -> None:
         if not self.remember_session:
             return
@@ -513,8 +624,21 @@ class Engine:
         if self.page is None or self.page.is_closed():
             self.emit(type="error", op="crawl", msg="no open page to crawl from")
             return
-        if not self.base_url:
-            self.base_url = self.page.url
+        # Root the crawl where the browser actually IS, not at the URL that was
+        # typed into the box. PhenomeOne is hash-routed: after signing in the
+        # location is `...#v=1&r=m&...&t=Overview`, and navigating back to the
+        # bare origin threw that away - the first real crawl explored a welcome
+        # screen with nothing on it but an embedded help widget.
+        try:
+            here = self.page.url or ""
+        except Exception:
+            here = ""
+        if here and not here.startswith("about:"):
+            if here != self.base_url:
+                log.info("Crawling from the current location: %s", here)
+            self.base_url = here
+        elif not self.base_url:
+            self.base_url = here
 
         crawler = SafeCrawler(self, self.store, limits or CrawlLimits())
         self.crawl_active = True
