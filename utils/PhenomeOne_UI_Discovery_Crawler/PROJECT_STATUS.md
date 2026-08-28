@@ -7,7 +7,7 @@
 | Last updated | 2026-08-28 |
 | Version | 1.6.0 (discovery + outcome-driven multi-surface crawl + functional QA engine + **session-first connect** + **semantics-free controls**) |
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed) |
-| Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (552 MB, git-ignored). **Rebuild before the next real run**: it prints 1.6.0 but was built 2026-08-27 10:15, before the 1.6.0 commit at 13:52, so the `list-shape` classifier may not be inside it. See §5 |
+| Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (553 MB, git-ignored) - **rebuilt from 1.6.0 and verified 2026-08-28** (`test_packaged.py` 30/30 on the relocated folder). See §5 |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
 | Tests | **637/637 source passing** — 14 suites, one clean run measured 2026-08-28 on 1.6.0, no flaky suite. `test_packaged.py` (30) not re-run in this pass - it needs a build, and `dist/` is stale |
 | Blocked on | **Nothing local.** The intended workflow - a human signs in once, then the tool runs itself - is implemented, test-proven, and now the primary GUI path (CONNECT + "then Safe Crawl"). What is missing is one **completed Safe Crawl on the real application, with its artifacts kept**. See §4 |
@@ -646,16 +646,21 @@ Real access has happened twice: 2026-08-24 (login only, four bugs) and
 `crawl-summary.json` or a `ui-map.json` from the real application, so those
 findings survive only as code comments and as log reads at the time.
 
-1. **Rebuild `dist/` first.** The build in the repo reports 1.6.0 but was
-   produced at 10:15 on 2026-08-27, before the 1.6.0 commit at 13:52 — so the
-   `list-shape` classifier may not be inside it, and without that change the
-   crawl still has nothing to click. See §5.
-2. **Then run it:** CONNECT (the stored session in
-   `dist\PhenomeOne-UI-Discovery\sessions\session.bin` may still be valid) →
-   leave "then Safe Crawl" ticked → 20 actions → read
+1. ~~Rebuild `dist/`~~ **done 2026-08-28.** The previous build predated the
+   1.6.0 commit, so it may not have contained the `list-shape` classifier -
+   without which the crawl has nothing to click. Rebuilt from 1.6.0 and verified
+   with `test_packaged.py` (30/30) before copying, per §5.
+2. **Run it:** CONNECT → leave "then Safe Crawl" ticked → 20 actions → read
    `output/crawl-summary.json` and `logs/discovery.log` before widening. The log
    now explains any state that offered nothing (Phase 13D), so an
    under-exploring crawl is diagnosable without a rerun.
+   **There is no stored PhenomeOne session**, so this takes one manual sign-in,
+   which CONNECT then stores for every run after it. The `session.bin` that used
+   to sit in the build was a *mock* session (one `127.0.0.1` / `p1uidMockAuth`
+   cookie) written by `test_packaged.py`, not a real login - it has been removed
+   so it cannot be mistaken for one. `config/settings.json` **is** real: it
+   carries the URL and username (never a password), and was carried across the
+   rebuild.
 3. **Keep the artifacts this time.** Copy `output/` and `logs/discovery.log` out
    of `dist/` (both git-ignored, and both empty as of 2026-08-28) so the next
    session can compare instead of re-measuring.
@@ -723,6 +728,13 @@ robocopy C:\Users\itay-b\p1uid-build\relocated-*\PhenomeOne-UI-Discovery ^
 
 Wipe `output/ reports/ logs/` from the copy afterwards - the packaged test fills
 them with mock-app data, and handing that over looks like a real run.
+
+**And delete `sessions/session.bin`.** The packaged test signs into the mock, so
+the build ships a DPAPI session holding a `127.0.0.1` / `p1uidMockAuth` cookie.
+It is harmless but it makes `sessions.exists()` true, so CONNECT announces a
+stored session it cannot use, and anyone reading the folder assumes a real login
+is saved. `config/settings.json` (URL + username, never a password) is worth
+carrying across a rebuild; the session is not.
 
 **Build in the temp folder, never directly into `dist/`.** PyInstaller writing
 579 MB inside a OneDrive-synced tree invites file locks mid-write and a corrupt
