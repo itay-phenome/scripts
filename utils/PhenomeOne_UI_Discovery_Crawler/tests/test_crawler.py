@@ -153,6 +153,46 @@ def main() -> int:
             check("re-crawling does not duplicate navigation paths",
                   after["navigationPaths"] == before[1],
                   f"{before[1]} -> {after['navigationPaths']}")
+
+            # ---------------- global chrome must not eat the whole budget
+            #
+            # Measured on real PhenomeOne (2026-08-28): the research-group tree
+            # is present in every state and sorts first, and once a research
+            # group had one identity every row led to the same place. All 60
+            # clicks of a 400-action crawl were tree rows and no tab was ever
+            # reached. `chrome.html` is that shape: 10 rows that all navigate to
+            # `#panel=open`, and three tabs that each open a state of their own
+            # and sort AFTER every row ("Temp" < "Tomato" < "Trials"). On an
+            # 8-action budget the tabs are reachable only by learning that the
+            # rows are one edge.
+            root = server.url.rsplit("/app/", 1)[0] + "/"
+            engine.call(lambda: engine.open_url(root + "chrome.html"), timeout=120)
+            limits3 = CrawlLimits(max_states=10, max_actions=8, max_depth=3,
+                                  time_budget_s=180, per_state_actions=30)
+            engine.call(lambda: engine.op_crawl(limits3), timeout=600)
+            s3 = json.loads(paths.CRAWL_SUMMARY_FILE.read_text(encoding="utf-8"))
+            clicked3 = [t["action"] for t in s3["timeline"]]
+            ROWS = {"Canola", "Eggplant", "Kiwi", "Oilseed", "Peas", "Pepper",
+                    "Sorghum", "Temp", "Tomato", "Tomato Demo"}
+            TABS = {"Trials", "Variables", "Zones"}
+            row_clicks = [c for c in clicked3 if c in ROWS]
+            tab_clicks = [c for c in clicked3 if c in TABS]
+            print(f"\n  global chrome: clicked {clicked3}")
+            print(f"  skipped: {s3['skippedByReason']}\n")
+
+            check("the tree is still tried first (it sorts before every tab)",
+                  clicked3 and clicked3[0] in ROWS, str(clicked3[:2]))
+            check("the same edge is proven a few times, not once per sibling",
+                  len(row_clicks) <= 6, f"{len(row_clicks)} row clicks: {row_clicks}")
+            check("and the siblings are reported as skipped, never silently",
+                  s3["skippedByReason"].get("same-shape-known-edge", 0) >= 5,
+                  str(s3["skippedByReason"]))
+            check("so the budget reached all three tabs",
+                  set(tab_clicks) == TABS, f"{tab_clicks}")
+            ids3 = " ".join(engine.store.data["states"])
+            check("each tab opened a state of its own",
+                  all(f"panel-{t.lower()}" in ids3 for t in TABS), ids3)
+            check("the crawl was not aborted", not s3["abortedBecause"], s3["abortedBecause"])
         finally:
             engine.shutdown_blocking()
 

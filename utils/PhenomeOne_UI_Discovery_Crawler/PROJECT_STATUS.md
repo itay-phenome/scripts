@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Last updated | 2026-08-28 |
-| Version | 1.7.0 (discovery + outcome-driven multi-surface crawl + functional QA engine + session-first connect + semantics-free controls + **data-vs-control separation**) |
+| Version | 1.8.0 (discovery + outcome-driven multi-surface crawl + functional QA engine + session-first connect + semantics-free controls + data-vs-control separation + **action equivalence**) |
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed) |
 | Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (553 MB, git-ignored) - **1.7.0, verified 2026-08-28** (`test_packaged.py` 30/30 on the relocated folder) and used for the crawls in Phase 15. See §5 |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
@@ -705,6 +705,52 @@ on actions: once two or three controls sharing a `leafSig` have led from this
 state to the same target, treat the remaining siblings as the same edge. See §4
 item 14.
 
+### Phase 16 — One edge is not thirty (2026-08-28, v1.8.0)
+
+The ceiling Phase 15E measured. Correct state identity made the research-group
+tree *one edge repeated thirty times*, and nothing in the crawler could tell the
+difference: all 60 clicks of a 400-action run were tree rows, 30 from the landing
+screen and 30 from the research-group screen, every one landing on
+`v-1-r-m-otype-5`. The tabs, the sidebar and the hamburger modules were never
+reached, and the crawl ended with an empty queue and no budget spent on anything
+else.
+
+Phase 8 already poisons an **inert** element and caps repeats of the **same**
+element across states. Neither applies here: these are thirty distinct elements
+that do change state - to a state already known.
+
+**The rule.** After `same_shape_probes` (3) members of one shape have been
+clicked from a state, if every one of them reached the *same* destination, the
+remaining siblings are treated as that same edge and skipped. Two different
+destinations and the shape stays informative forever. State by state, so a
+different tree on a different screen learns for itself.
+
+**Deliberately narrow.** Only shapes the design system itself declared are
+trusted - `leafSig`, the class list of a semantics-free control. A `link` or a
+`button` shares its shape with every other link or button on the page, and
+"three links went to X so the fourth will too" is not true. This fixes the
+measured case and generalises no further.
+
+**Nothing is capped silently.** Skips are counted as `same-shape-known-edge` in
+`crawl-summary.json`, and the moment a shape settles the log says what was
+learned: *"Learned: every div.treeRow so far from X reaches Y - treating its
+siblings as the same edge"*. A no-state-change click counts as a destination too,
+so the rule also absorbs the wasted no-op clicks Phase 15E measured.
+
+**Proved on a mock of exactly that shape.** `tests/mock_app/chrome.html`: ten
+tree rows that all navigate to `#panel=open`, and three tabs that each open a
+state of their own and sort *after* every row alphabetically ("Temp" < "Tomato" <
+"Trials"). On an 8-action budget the tabs are reachable only by learning the
+equivalence. `test_crawler.py` (+6 checks, 22 → 28) asserts the whole sequence:
+
+```
+clicked: Canola, Eggplant, Kiwi, Trials, Variables, Zones, Canola, Eggplant
+skipped: same-shape-known-edge = 7
+```
+
+Three probes, then every tab - and the tree is still tried first, because it
+still sorts first.
+
 ---
 
 ## 3. Test status
@@ -724,7 +770,7 @@ is older than the 1.6.0 source (see §5).
 |---|---|---|
 | `test_units.py` | 123 | fingerprints incl. **dialog-title normalisation (40)**, locators, store merge, redaction, login analysis, nav tree, report |
 | `test_safety.py` | 142 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary and the **semantics-free dhtmlxTree rows (11)** |
-| `test_crawler.py` | 22 | autonomous crawl, budgets, idempotence, **zero side effects** |
+| `test_crawler.py` | 28 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_surfaces.py` | 45 | surface scope + the outcome decision table (no browser) |
 | `test_multisurface.py` | 35 | **autonomous crawling across tabs/windows**: menu with no fingerprint change, same-origin tab and popup explored, off-origin closed, parent crawl survives |
 | `test_pipeline.py` | 50 | workflows, UI diff, codegen, JUnit, CI exit codes |
@@ -809,12 +855,6 @@ Exit 0, every artifact written, no secret leaked.
    into a Locator. Fine for generated internal helpers, but worth replacing with
    a structured switch over `locatorSpec.args`.
 11. **Jenkinsfile** — not written. The CLI + JUnit XML are ready for it.
-14. **Action equivalence classes** (Phase 15E, the current ceiling on depth): a
-   state offering 30 controls of the same shape that all lead to the same target
-   spends its whole budget proving the same edge 30 times. Once 2-3 members of a
-   `leafSig` from this state land on the same known state, skip the rest. That
-   frees ~27 of 30 candidates per state for the tabs and menus that open new
-   screens - which is what "crawl inside a research group" needs.
 13. **Expose the crawl budgets** (Phase 15A): the GUI sets only `max_actions`,
    so its runs are silently capped at 300 s (~66 actions), and neither the GUI
    nor the CLI can change `per_state_actions` - which is what makes a budget

@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PhenomeOne (global chrome)</title>
+<style>
+ body{font:14px/1.6 Segoe UI,sans-serif;margin:0;padding:14px 18px;color:#222}
+ h1{font-size:19px;margin:0 0 4px}
+ .muted{color:#666;font-size:12px}
+ #tabs{margin:10px 0 14px}
+ .tabCell{cursor:pointer;display:inline-block;padding:5px 12px;border:1px solid #ccd;
+          border-bottom:2px solid #46a;margin-right:6px}
+ #tree{width:230px;float:left;border-right:1px solid #ddd;padding-right:12px}
+ .treeRow{cursor:pointer;padding:2px 6px}
+ #main{margin-left:260px}
+</style>
+
+<!--
+  The shape of the real application, reduced to the one property that mattered:
+  the research-group tree is GLOBAL CHROME. It is present in every state, it is
+  the first thing in candidate order, and - now that a research group has one
+  identity (Phase 15D) - every one of its rows leads to the SAME state.
+
+  Measured on real PhenomeOne (2026-08-28): all 60 clicks of a 400-action crawl
+  were tree rows, 30 from the landing screen and 30 from the research-group
+  screen, every one landing on `v-1-r-m-otype-5`. The tabs, the sidebar and the
+  hamburger modules were never reached, and the crawl ended with its queue empty
+  and no budget spent on anything else.
+
+  Every row here navigates to the same `#panel=open`, so 10 rows are one edge
+  clicked 10 times. The three tabs each open a state of their own, and they sort
+  AFTER every row alphabetically ("Temp" < "Tomato" < "Trials"), so a crawler
+  that does not learn the equivalence can never reach them on a small budget.
+-->
+
+<h1>Research groups</h1>
+<p class="muted" id="status">ready</p>
+
+<div id="tabs">
+  <div class="tabCell">Trials</div>
+  <div class="tabCell">Variables</div>
+  <div class="tabCell">Zones</div>
+</div>
+
+<div id="tree">
+  <div class="treeRow">Canola</div>
+  <div class="treeRow">Eggplant</div>
+  <div class="treeRow">Kiwi</div>
+  <div class="treeRow">Oilseed</div>
+  <div class="treeRow">Peas</div>
+  <div class="treeRow">Pepper</div>
+  <div class="treeRow">Sorghum</div>
+  <div class="treeRow">Temp</div>
+  <div class="treeRow">Tomato</div>
+  <div class="treeRow">Tomato Demo</div>
+</div>
+
+<div id="main"><p id="panel">Nothing selected.</p></div>
+
+<script>
+// Rows all reach one state; tabs each reach their own. Nothing here mutates
+// anything: the crawler is meant to explore this freely.
+const clicked = [];
+document.addEventListener("click", (e) => {
+  const row = e.target.closest(".treeRow");
+  const tab = e.target.closest(".tabCell");
+  if (!row && !tab) return;
+  const label = ((row || tab).textContent || "").trim();
+  clicked.push(label);
+  document.getElementById("status").textContent = clicked.length + " activated";
+  if (row) {
+    // Every research group opens the same screen - that is the whole point.
+    location.hash = "panel=open";
+    document.getElementById("panel").textContent = "Group selected";
+  } else {
+    location.hash = "panel=" + label.toLowerCase();
+    document.getElementById("panel").textContent = label + " screen";
+  }
+});
+Object.defineProperty(window, "__clicked", { get() { return clicked.slice(); } });
+</script>

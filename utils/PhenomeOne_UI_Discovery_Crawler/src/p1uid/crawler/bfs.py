@@ -68,6 +68,14 @@ class CrawlLimits:
     # state. Clicking it from all of them costs O(states^2) clicks and teaches
     # nothing new after the first few, so cap how often one control is retried.
     max_repeats_per_element: int = 3
+    # How many members of one SHAPE to click from a state before concluding that
+    # its siblings are the same edge. Measured on real PhenomeOne (2026-08-28):
+    # the research-group tree is global chrome, and once a research group had one
+    # identity every one of its 30 rows led to the same state - so all 60 clicks
+    # of a 400-action crawl proved the same two edges and no tab was ever
+    # reached. Three is enough to see a shape behave consistently and cheap
+    # enough to lose almost nothing when it does not.
+    same_shape_probes: int = 3
 
 
 @dataclass
@@ -152,6 +160,8 @@ class SafeCrawler:
         # Collected by the popup listener, classified in `_click`.
         self._pending_pages: list[Any] = []
         self._nothing_clickable = False
+        # (state, shape) -> the destination each clicked member reached, in order.
+        self._shape_targets: dict[tuple[str, str], list[str]] = {}
         self.registry: surfaces.SurfaceRegistry | None = None
         # Extra origins the caller declares as part of the application.
         self.extra_origins: tuple[str, ...] = ()
@@ -168,6 +178,46 @@ class SafeCrawler:
 
     def _skip(self, reason: str) -> None:
         self.result.skipped[reason] = self.result.skipped.get(reason, 0) + 1
+
+    # ------------------------------------------------- action equivalence
+    #
+    # Two controls of the same SHAPE that lead from the same state to the same
+    # place are one edge, not two. Without this a crawler cannot tell the
+    # difference and re-proves the edge once per sibling: on the real
+    # application that was 30 research-group rows per state, every one landing
+    # on `v-1-r-m-otype-5`, which consumed every crawl budget before a tab, a
+    # sidebar item or a hamburger module was ever clicked.
+    #
+    # Only shapes the design system itself declared are trusted here - the class
+    # list of a semantics-free control (`leafSig`). A `link` or a `button` shares
+    # its shape with every other link or button on the page, and "three links
+    # went to X so the fourth will too" is not true. Narrow on purpose: it fixes
+    # the measured case and generalises no further.
+    @staticmethod
+    def _shape_of(el: dict[str, Any]) -> str:
+        return str(el.get("leafSig") or "")
+
+    def _shape_is_settled(self, state_id: str, shape: str) -> str:
+        """The single destination this shape always reaches, or "" if unproven."""
+        seen = self._shape_targets.get((state_id, shape))
+        if not seen:
+            return ""
+        targets = [t for t in seen if t]
+        if len(seen) < self.limits.same_shape_probes or len(set(targets)) != 1:
+            return ""
+        return targets[0]
+
+    def _note_shape(self, state_id: str, shape: str, target: str | None) -> None:
+        if not shape:
+            return
+        seen = self._shape_targets.setdefault((state_id, shape), [])
+        seen.append(target or state_id)          # no state change counts as "here"
+        if len(seen) == self.limits.same_shape_probes:
+            settled = self._shape_is_settled(state_id, shape)
+            if settled:
+                # Never a silent cap: say what was learned and what it costs.
+                log.info("Learned: every %s so far from %s reaches %s - treating its "
+                         "siblings as the same edge", shape, state_id, settled)
 
     # -------------------------------------------------------------- guards
     def _install_guards(self, page: Any) -> None:
@@ -510,6 +560,10 @@ class SafeCrawler:
                 ident = (state_id, cand.key)
                 if ident in self._tried or ident in self._poison:
                     continue
+                shape = self._shape_of(cand.element)
+                if shape and self._shape_is_settled(state_id, shape):
+                    self._skip("same-shape-known-edge")
+                    continue
                 self._tried.add(ident)
 
                 if current != state_id:
@@ -529,6 +583,7 @@ class SafeCrawler:
                 if outcome == "aborted":
                     return
                 current = self.result.timeline[-1]["to"] if self.result.timeline else None
+                self._note_shape(state_id, shape, current)
 
                 dest = current
                 if dest and dest != state_id and dest not in enqueued \
