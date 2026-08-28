@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PhenomeOne (data arrives late)</title>
+<style>
+ body{font:14px/1.6 Segoe UI,sans-serif;margin:0;padding:14px 18px;color:#222}
+ .row{cursor:pointer;padding:3px 8px;border-bottom:1px solid #eee}
+ .tab{cursor:pointer;display:inline-block;padding:5px 12px;border:1px solid #ccd;margin-right:6px}
+</style>
+
+<!--
+  The shape that made the crawler scan a skeleton on real PhenomeOne: the route
+  changes, an XHR goes out, and the screen is rendered only when it returns. The
+  DOM is perfectly quiet for the whole round trip - far longer than the 250 ms
+  quiet window - so a mutation-only settle detector calls it finished and the
+  scan records a page that has not been drawn yet.
+
+  `/slow-data?ms=900` sleeps server-side, so the wait is a genuine in-flight
+  request, not a timer a test could fake.
+-->
+
+<h1>Reports</h1>
+<div id="tabs"><div class="tab" id="load">Load report</div></div>
+<div id="content"><p id="hint">No report loaded.</p></div>
+
+<script>
+document.getElementById("load").addEventListener("click", async () => {
+  const res = await fetch("/slow-data?ms=900");
+  const data = await res.json();
+  const box = document.getElementById("content");
+  box.innerHTML = "";
+  for (const name of data.rows) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.textContent = name + " report";
+    box.appendChild(row);
+  }
+  location.hash = "report=loaded";
+});
+</script>

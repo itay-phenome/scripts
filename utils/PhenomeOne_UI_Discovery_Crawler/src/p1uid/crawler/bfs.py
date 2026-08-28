@@ -579,7 +579,19 @@ class SafeCrawler:
                 self._skip("max-depth")
                 continue
 
-            # Get to the state we intend to explore.
+            # Get to the state we intend to explore - and LOOK at it. Standing on
+            # the right page is not the same as holding a current picture of it.
+            #
+            # Measured on real PhenomeOne (2026-08-28): when the last click of
+            # the previous state happened to land on the next state in the queue,
+            # `current == state_id` and this block was skipped - so `res` still
+            # described the state we came FROM, and the candidates were that
+            # page's controls. Both PhenomeOne screens carry the navigation tree,
+            # so every candidate still resolved by text and nothing looked wrong:
+            # the crawler explored the research group using the landing page's
+            # 40 elements instead of its own 94, and the tabs it needed - which
+            # exist, are SAFE_NAVIGATION and have unique locators - were never
+            # candidates on any state.
             if current != state_id:
                 probe = await self._return_to(state_id, path)
                 if probe is None:
@@ -589,6 +601,15 @@ class SafeCrawler:
                     continue
                 res = probe
                 current = state_id
+            elif res is None or res.state_id != state_id:
+                fresh = await self._scan()
+                if fresh is None or fresh.state_id != state_id:
+                    self.result.unreachable_states.append(state_id)
+                    log.warning("State %s is not what the browser is showing (%s); skipping it",
+                                state_id, fresh.state_id if fresh else "nothing analysable")
+                    current = None
+                    continue
+                res = fresh
 
             visited.add(state_id)
             self.result.states_visited = len(visited)

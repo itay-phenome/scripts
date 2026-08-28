@@ -491,6 +491,72 @@ def semantics_free_tree() -> None:
             engine.shutdown_blocking()
 
 
+def late_data() -> None:
+    """A quiet DOM is not a settled one while the data is still on its way.
+
+    Real PhenomeOne changes route, fetches, and renders when the response lands.
+    The DOM is perfectly quiet for the whole round trip, which is far longer than
+    the 250 ms quiet window - so a mutation-only detector reports "settled" and
+    the scan records a screen that has not been drawn.
+
+    The mock's `/slow-data` endpoint sleeps server-side, so this is a real
+    in-flight request rather than a timer a test could fake. Both directions are
+    asserted: with request-awareness the rows are there, and with it switched off
+    they are not - which is what makes the machinery worth its place.
+    """
+    import queue
+    from p1uid.browser.controller import Engine
+    from p1uid.discovery import scanner, stability
+    from p1uid.logging_setup import setup
+    from serve_mock import MockServer
+
+    setup(debug="--debug" in sys.argv)
+    print("\n" + "=" * 62 + "\nINTEGRATION: content that arrives after the DOM goes quiet\n" + "=" * 62)
+    ROWS = "() => document.querySelectorAll('#content .row').length"
+    with MockServer() as server:
+        root = server.url.rsplit("/app/", 1)[0] + "/"
+        engine = Engine(queue.Queue(), headless="--headed" not in sys.argv)
+        engine.start()
+        try:
+            async def run(wait_requests: bool):
+                await engine.open_url(root + "slowdata.html")
+                page = engine.page
+                await scanner.ensure_core(page.main_frame)
+                await page.get_by_text("Load report", exact=True).click()
+                res = await page.evaluate(
+                    "(o) => window.__p1uidCore.waitStable(o)",
+                    {"quietMs": 250, "timeoutMs": 5000, "waitRequests": wait_requests})
+                return res, await page.evaluate(ROWS)
+
+            off, rows_off = engine.call(lambda: run(False), timeout=120)
+            print(f"    requests ignored: reason={off['reason']} {off['ms']}ms "
+                  f"pending={off['pending']} rows={rows_off}")
+            check("without request-awareness the page looks settled while empty",
+                  off["reason"] == "quiet" and rows_off == 0,
+                  f"reason={off['reason']} rows={rows_off}")
+
+            on, rows_on = engine.call(lambda: run(True), timeout=120)
+            print(f"    requests awaited: reason={on['reason']} {on['ms']}ms "
+                  f"waited={on.get('waited')} rows={rows_on}")
+            check("with it, the wait outlasts the request", on["reason"] == "quiet"
+                  and bool(on.get("waited")), f"reason={on['reason']} waited={on.get('waited')}")
+            check("and the rendered rows are there to be scanned", rows_on == 6, str(rows_on))
+            check("it waited for the response, not a fixed sleep",
+                  850 < on["ms"] < 4000, f"{on['ms']} ms")
+            check("nothing is left in flight afterwards", on["pending"] == 0, str(on["pending"]))
+
+            # A page with no requests must not pay for the machinery.
+            async def plain():
+                await engine.open_url(root + "tree.html")
+                return await stability.wait_stable(engine.page, timeout_ms=5000)
+            st = engine.call(lambda: plain(), timeout=60)
+            check("a page that fetches nothing still settles fast",
+                  st.stable and st.ms < 2000 and not st.waited_for_requests,
+                  f"stable={st.stable} {st.ms}ms waited={st.waited_for_requests}")
+        finally:
+            engine.shutdown_blocking()
+
+
 def value_labels() -> None:
     """A value is not a control name - the unit half of the same rule.
 
@@ -701,6 +767,7 @@ def main() -> int:
         fn()
     if "--unit" not in sys.argv:
         semantics_free_tree()
+        late_data()
         integration()
     print(f"\n{'=' * 62}\n{count - len(failures)}/{count} safety checks passed")
     if failures:

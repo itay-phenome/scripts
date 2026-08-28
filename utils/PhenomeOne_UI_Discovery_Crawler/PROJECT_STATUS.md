@@ -788,6 +788,105 @@ skipped: same-shape-known-edge = 24
 
 One row, one tab, alternating - which is the behaviour the real screen needs.
 
+### Phase 17 — The crawler was reading the wrong page (2026-08-28, v1.9.0)
+
+With Phase 16 shipped, the real crawl still ended after 6 clicks and the user's
+verdict was blunt: "doesn't changed much". It was right, and the cause was none
+of the things that had been fixed so far.
+
+**A. Where the tabs actually were.** A read-only inventory of the running
+application settled several questions at once:
+
+* the landing screen (`oid=m`, "Mine") really is only the navigation tree plus
+  an embedded knowledge-base widget - 850 nodes, 91 clickable, **zero** matching
+  the standard interactive selector, and stable for 48 s, so nothing was
+  arriving late;
+* a research-group screen is a different animal - 2164 nodes, 212 clickable,
+  including `div.dhxtabbar_tab_text` x8: Overview, Germplasms, Variables,
+  Observations, Cultivars, and summary cards (Germplasms 10, Studies 2, Plots 18);
+* those tabs **are** harvested, **are** SAFE_NAVIGATION, and most have unique
+  locators. `Overview`, `Variables`, `Studies`, `Trials` and `Plots` resolve to
+  exactly one element. Only `Germplasms`, `Observations` and `Cultivars` collide
+  with the identically-named summary cards and are refused as ambiguous.
+
+So the crawler was not misclassifying the application's navigation. It never saw
+it.
+
+**B. The bug: a state explored through the previous state's eyes.** `_crawl`
+only re-scanned when it had to *move*:
+
+```python
+if current != state_id:        # need to travel? then scan on arrival
+    res = await self._return_to(state_id, path)
+cands = self._candidates(res)  # ... otherwise `res` is whatever it was
+```
+
+When the last click of one state happens to land on the next state in the queue,
+`current == state_id`, the block is skipped, and `res` still describes the state
+the crawler came **from**. The log said it plainly once we knew to look:
+
+```
+Scan: state=v-1-r-m-otype-5  elements=94
+Exploring v-1-r-m-otype-5 (depth 1): 30 safe action(s) of 40 elements
+```
+
+Forty is the landing page's element count. The research group was explored using
+the landing page's controls. Nothing looked broken because both screens carry the
+same navigation tree, so every candidate still resolved by text and still
+clicked - the crawler simply re-clicked the tree, from every state, forever. This
+is the true cause of "RG only, nothing traveling inside the RG", and it predates
+every fix made today; Phases 15 and 16 were real bugs, but this one was hiding
+behind them.
+
+Arriving at a state now always means looking at it: if the browser is already
+standing there but `res` describes something else, the state is re-scanned, and a
+scan that disagrees with the queued identity marks the state unreachable instead
+of silently exploring the wrong page.
+
+**Measured on the real application**, same 25-action budget before and after:
+
+| | before | after |
+|---|---|---|
+| elements the research group was explored with | 40 (the landing page's) | **94 (its own)** |
+| states discovered | 1 | **3** (incl. `v-1-r-m-otype-4`, a Program) |
+| navigation edges learned | 3 | **15** |
+| depth reached | 1 | **2** |
+| shapes learned | tree rows only | tree rows **and** `div.overview_summary_counters_label` |
+
+It stopped on the action budget, not on an empty queue.
+
+**C. A quiet DOM is not a settled one.** Found while hunting B and kept on its
+own merits, with the test that proves it. An SPA changes route, fetches, and
+renders when the response lands; the DOM is perfectly quiet for the whole round
+trip, which is longer than the 250 ms quiet window. The injected core now counts
+in-flight `fetch`/`XMLHttpRequest` and the quiet window will not close while any
+are outstanding.
+
+This is **not** `networkidle`, which the design rejects for good reason: only
+fetch and XHR are counted - never sockets, EventSource or polling - a request
+older than 8 s stops counting so a long-poll cannot pin the page as busy, and the
+caller's timeout still bounds the wait. The patch is installed with the core,
+which the context adds as an init script, so it is in place before the
+application's own scripts run.
+
+`tests/mock_app/slowdata.html` renders only after `/slow-data?ms=900`, an
+endpoint that sleeps server-side - a real in-flight request, not a timer a test
+could fake. `test_safety.py` asserts **both** directions, which is what earns the
+machinery its place:
+
+```
+requests ignored: reason=quiet  256ms pending=1 rows=0     <- settled, and empty
+requests awaited: reason=quiet 1420ms waited=True rows=6   <- settled, and drawn
+```
+
+plus that a page which fetches nothing still settles in well under a second.
+
+Honest note: this did **not** turn out to be what was breaking PhenomeOne - the
+tracker never fired there, because that application had already rendered by the
+time the crawler looked. It was written on a hypothesis that the measurement then
+disproved. It stays because the failure it prevents is real and now tested, not
+because it fixed the bug in hand.
+
 ---
 
 ## 3. Test status

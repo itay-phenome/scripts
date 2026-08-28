@@ -951,14 +951,73 @@ function installObservers() {
 // AND the structural signature identical across that window. Event-driven -
 // no fixed sleeps, and deliberately NOT tied to network idle, which never
 // settles on an app that polls or keeps a socket open.
+// In-flight application requests.
+//
+// Measured on real PhenomeOne (2026-08-28): selecting a research group changes
+// the route, fires an XHR, and renders the screen when it returns. The gap in
+// between is longer than the 250 ms quiet window, so `waitStable` called the
+// skeleton settled and the crawler scanned 40 elements of a 97-element screen -
+// the tabs (Overview, Germplasms, Variables...) were simply not there yet. Every
+// state's exploration then had nothing but the navigation tree to click.
+//
+// This is NOT `networkidle`, which the design rejects for good reason: a page
+// that polls, streams or holds a socket open never reaches it. Only fetch and
+// XMLHttpRequest are counted, a request older than STALE_REQUEST_MS stops being
+// counted so a long-poll cannot pin the page as busy forever, and the caller's
+// timeout still bounds the whole wait.
+const STALE_REQUEST_MS = 8000;
+const _inflight = new Map();          // id -> started-at
+let _reqSeq = 0;
+
+function inflightCount() {
+  const now = performance.now();
+  for (const [id, started] of _inflight) {
+    if (now - started > STALE_REQUEST_MS) _inflight.delete(id);
+  }
+  return _inflight.size;
+}
+
+function trackRequests() {
+  if (window.__p1uidRequestsPatched) return;
+  window.__p1uidRequestsPatched = true;
+  const open = () => { const id = ++_reqSeq; _inflight.set(id, performance.now()); return id; };
+  const close = (id) => { _inflight.delete(id); };
+
+  try {
+    const nativeFetch = window.fetch;
+    if (typeof nativeFetch === 'function') {
+      window.fetch = function (...args) {
+        const id = open();
+        let p;
+        try { p = nativeFetch.apply(this, args); } catch (e) { close(id); throw e; }
+        return p.then((r) => { close(id); return r; }, (e) => { close(id); throw e; });
+      };
+    }
+  } catch (e) { /* leave fetch alone if anything is unusual */ }
+
+  try {
+    const send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function (...args) {
+      const id = open();
+      // loadend covers load, error, abort and timeout - never leak a counter.
+      try { this.addEventListener('loadend', () => close(id)); } catch (e) { close(id); }
+      try { return send.apply(this, args); } catch (e) { close(id); throw e; }
+    };
+  } catch (e) { /* ditto */ }
+}
+
 function waitStable(opts) {
   opts = opts || {};
   const quiet = opts.quietMs || 250;
   const timeout = opts.timeoutMs || 5000;
+  // A request in flight means content is on its way: not settled, whatever the
+  // DOM is doing. Opt-out kept so a caller can measure the old behaviour.
+  const waitRequests = opts.waitRequests !== false;
   return new Promise((resolve) => {
     const t0 = performance.now();
     let sig = domSignature();
     let changes = 0;
+    let waitedForRequests = false;
     let quietTimer = null, hardTimer = null, mo = null, done = false;
 
     const finish = (reason) => {
@@ -969,6 +1028,7 @@ function waitStable(opts) {
       if (hardTimer) clearTimeout(hardTimer);
       resolve({ stable: reason === 'quiet', reason: reason, changes: changes,
                 ms: Math.round(performance.now() - t0), signature: sig,
+                pending: inflightCount(), waited: waitedForRequests,
                 readyState: document.readyState });
     };
 
@@ -977,6 +1037,13 @@ function waitStable(opts) {
       if (now !== sig) {            // changed without a mutation we saw: keep waiting
         sig = now;
         changes++;
+        arm();
+        return;
+      }
+      if (waitRequests && inflightCount() > 0) {
+        // The DOM is quiet only because it is waiting for data. Re-arm: the
+        // response will mutate the page and restart the quiet window properly.
+        waitedForRequests = true;
         arm();
         return;
       }
@@ -1005,6 +1072,7 @@ window.__p1uidCore = {
   signature: function () { return domSignature(); },
   visibleSignature: function () { return visibleSignature(); },
   missedClickables: function (n) { return missedClickables(n); },
+  inflight: function () { return inflightCount(); },
   startObserving: function () {
     installObservers();
     state.observing = true;
@@ -1017,6 +1085,11 @@ window.__p1uidCore = {
   _internals: { computeRole: computeRole, accessibleName: accessibleName,
                 classify: classify, domSignature: domSignature }
 };
+
+// Installed with the core, which the context adds as an init script - so the
+// patch is in place before the application's own scripts run and no request is
+// missed. Idempotent: a second injection into the same document is a no-op.
+trackRequests();
 
 if (window.__p1uidWantObserve) window.__p1uidCore.startObserving();
 })();

@@ -12,6 +12,17 @@ Explicitly NOT used:
 
 Instead the browser watches its own mutations and resolves as soon as there
 have been no mutations, and no signature change, for a quiet window.
+
+One addition, measured on real PhenomeOne (2026-08-28): a quiet DOM is not a
+settled one while the application is fetching what it is about to render.
+Selecting a research group changed the route, fired an XHR and rendered when it
+returned; the gap was longer than the quiet window, so the crawler scanned a
+40-element skeleton of a 97-element screen and never saw the tabs. The injected
+core therefore counts in-flight `fetch`/`XMLHttpRequest` and the quiet window
+will not close while any are outstanding. That is not `networkidle`: sockets,
+EventSource and polling are not counted, a request older than 8 s stops counting
+so a long-poll cannot pin the page as busy, and the caller's timeout still bounds
+the wait.
 """
 from __future__ import annotations
 
@@ -38,6 +49,8 @@ class Stability:
     changes: int = 0
     ready_state: str = ""
     signature: str = ""
+    pending: int = 0            # application requests still in flight
+    waited_for_requests: bool = False
 
     def __bool__(self) -> bool:
         return self.stable
@@ -64,7 +77,9 @@ async def wait_stable(page: Any, quiet_ms: int = DEFAULT_QUIET_MS,
             return Stability(stable=bool(res.get("stable")), reason=str(res.get("reason", "")),
                              ms=int(res.get("ms", 0)), changes=int(res.get("changes", 0)),
                              ready_state=str(res.get("readyState", "")),
-                             signature=str(res.get("signature", "")))
+                             signature=str(res.get("signature", "")),
+                             pending=int(res.get("pending", 0)),
+                             waited_for_requests=bool(res.get("waited")))
         except Exception as exc:
             # A navigation destroys the execution context mid-wait. That is
             # itself a settling event: wait for the new document, then retry once.
