@@ -5,11 +5,11 @@
 | | |
 |---|---|
 | Last updated | 2026-08-28 |
-| Version | 1.9.0 (discovery + outcome-driven multi-surface crawl + functional QA engine + session-first connect + semantics-free controls + data-vs-control separation + action equivalence + **scan-on-arrival**) |
+| Version | 1.10.0 (discovery + outcome-driven multi-surface crawl + functional QA engine + session-first connect + semantics-free controls + data-vs-control separation + action equivalence + scan-on-arrival + **scoped locators**) |
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed) |
 | Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (553 MB, git-ignored) - **1.7.0, verified 2026-08-28** (`test_packaged.py` 30/30 on the relocated folder) and used for the crawls in Phase 15. See §5 |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **681/681 source passing** — 14 suites, one clean run measured 2026-08-28 on 1.9.0, no flaky suite. Plus `test_packaged.py` 30/30 on the 1.9.0 build |
+| Tests | **687/687 source passing** — 14 suites, one clean run measured 2026-08-28 on 1.10.0, no flaky suite. `test_packaged.py` 30/30 on the 1.9.0 build; **1.10.0 is not built yet** |
 | Blocked on | **Nothing local.** The intended workflow - a human signs in once, then the tool runs itself - is implemented, test-proven, and now the primary GUI path (CONNECT + "then Safe Crawl"). What is missing is one **completed Safe Crawl on the real application, with its artifacts kept**. See §4 |
 | Real access so far | 2026-08-24 against `eksdemo-helm.phenome-networks.com` - login only, exposed 4 bugs (Phase 7). 2026-08-27 - connect + scan, produced Phases 13 and 14. **No `crawl-summary.json` or real `ui-map.json` exists on disk**: those findings survive as code comments only |
 
@@ -887,6 +887,65 @@ time the crawler looked. It was written on a hypothesis that the measurement the
 disproved. It stays because the failure it prevents is real and now tested, not
 because it fixed the bug in hand.
 
+### Phase 18 — A label in two places is still one control each (2026-08-28, v1.10.0)
+
+The ceiling Phase 17 left. Of the last real crawl's refusals, **308 were
+`locator-not-unique`** - and they were navigation, not noise: the research-group
+screen puts `Germplasms` on a **tab** and on a **summary card**, so
+`getByText('Germplasms')` matched two elements and the crawler refused both. Same
+for `Observations` and `Cultivars`. The tabs were harvested, classified
+SAFE_NAVIGATION, and unreachable.
+
+**Tier 6: the control's own shape, plus its text.**
+`div.dhxtabbar_tab_text:text-is("Germplasms")` separates the tab from the card.
+The class comes from `classSelector` in the injected core, which keeps only what
+looks like the framework's own vocabulary:
+
+* **generated names are rejected** - a digit run, a hash, a CSS-module or emotion
+  shape (`css-1x2y3z`, `jsx-1234`, `sc-a1b2c3`): they change on every build;
+* **state modifiers are rejected** - `...actv`, `selected`, `open`, `focus`:
+  they describe the moment, not the control, and a locator built from one stops
+  matching the instant the user clicks elsewhere;
+* at most two classes, and the pair is **emitted only when shape+text is unique
+  on the page**, so it can never make ambiguity worse. `buildCounts` gained a
+  `classText` bucket to answer that question before the locator is offered.
+
+Tier 6 keeps the MEDIUM ceiling: it is a real handle, but a class is still a
+weaker promise than a test id or a role, and the `data-testid` recommendation in
+the generated README does not change.
+
+**A second defect fell out of the same mock: the active tab was never
+classifiable.** A tab bar renders the current tab as `tabCell tabCell_actv`, so
+its `leafSignature` differed from its siblings', `leafSiblings` counted 1, and
+Phase 14's corroboration refused it - the one tab the user is looking at was the
+one the crawler would not classify. `leafSignature` now strips state modifiers
+too, with a fallback: a row whose *only* class is `selectedTreeRow` keeps it
+rather than collapsing to a bare `span`.
+
+`tests/mock_app/tree.html` §10 reproduces the collision, and ended up stronger
+than the real case - **three** controls labelled `Germplasms` (a nav item, a tab,
+a card):
+
+```
+div.navCell:text-is("Germplasms")     matches 1
+div.tabCell:text-is("Germplasms")     matches 1     <- tabCell_actv excluded
+div.cardLabel:text-is("Germplasms")   matches 1
+```
+
+`test_safety.py` (+6 checks, 148 -> 154) asserts all three are discovered, each
+resolves to exactly one element, none falls back to plain ambiguous text, each is
+scoped by its own class, no state modifier reaches a locator, and the tab is
+auto-clickable now that it is unambiguous. Codegen needs no change: the selector
+is emitted as a plain `locator('...')` string, which the TS and Python generators
+already handle, so a consumer gets the unambiguous locator instead of a
+`// SKIPPED` line.
+
+**Not yet confirmed on the real application.** The stored session expired at the
+90-minute mark before this could be measured there, so the 308 figure has not
+been re-measured - only the mechanism is proven, on a mock built from the real
+DOM. First thing to check next session: CONNECT, crawl, and compare
+`locator-not-unique` against 308.
+
 ---
 
 ## 3. Test status
@@ -905,7 +964,7 @@ is older than the 1.6.0 source (see §5).
 | Suite | Checks | Covers |
 |---|---|---|
 | `test_units.py` | 123 | fingerprints incl. **dialog-title normalisation (40)**, locators, store merge, redaction, login analysis, nav tree, report |
-| `test_safety.py` | 148 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary and the **semantics-free dhtmlxTree rows (11)** |
+| `test_safety.py` | 154 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary and the **semantics-free dhtmlxTree rows (11)** |
 | `test_crawler.py` | 28 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_surfaces.py` | 45 | surface scope + the outcome decision table (no browser) |
 | `test_multisurface.py` | 35 | **autonomous crawling across tabs/windows**: menu with no fingerprint change, same-origin tab and popup explored, off-origin closed, parent crawl survives |
@@ -919,7 +978,7 @@ is older than the 1.6.0 source (see §5).
 | `test_login_variants.py` | 13 | slow form, iframe IdP form, landing page, no form, **late-rendering username field** (appears / never appears) |
 | `test_gui_smoke.py` | 21 | real Tk window driving the real browser |
 | `test_packaged.py` | 30 | relocated frozen build in a stripped environment |
-| **Total** | **711** | 681 source (measured 2026-08-28 on 1.9.0, all green, no flaky suite) + 30 packaged (30/30 on the 1.9.0 build) |
+| **Total** | **717** | 687 source (measured 2026-08-28 on 1.10.0, all green, no flaky suite) + 30 packaged (30/30 on the 1.9.0 build; 1.10.0 not yet packaged) |
 
 `test_packaged.py` takes a path: `python tests/test_packaged.py <dist>/PhenomeOne-UI-Discovery`.
 It **moves** the folder (relocation test), so pass the current location.
@@ -1028,11 +1087,6 @@ Exit 0, every artifact written, no secret leaked.
    into a Locator. Fine for generated internal helpers, but worth replacing with
    a structured switch over `locatorSpec.args`.
 11. **Jenkinsfile** — not written. The CLI + JUnit XML are ready for it.
-15. **Container-scoped locators for ambiguous labels** (Phase 17, the current
-   ceiling): 308 refusals in the last real crawl were `locator-not-unique`,
-   because a tab and a summary card share a label. `.dhxtabbar_tab_text` plus the
-   text is a stable handle - the framework's own class, not a generated id - and
-   the locator engine already has the tiers to hold it.
 13. **Expose the crawl budgets** (Phase 15A): the GUI sets only `max_actions`,
    so its runs are silently capped at 300 s (~66 actions), and neither the GUI
    nor the CLI can change `per_state_actions` - which is what makes a budget

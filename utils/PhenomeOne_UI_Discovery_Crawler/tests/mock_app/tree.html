@@ -18,6 +18,14 @@
  .gridRow{display:flex;gap:10px}
  .gridCell{cursor:pointer;padding:2px 6px;border:1px solid #eee}
  .wrapCell{cursor:pointer;padding:2px 6px;display:inline-block}
+ /* A tab bar and summary cards that share their labels, as the real
+    research-group screen does. */
+ .tabCell{cursor:pointer;display:inline-block;padding:5px 12px;border:1px solid #ccd}
+ .tabCell_actv{font-weight:600;border-bottom:2px solid #46a}
+ .card{cursor:pointer;display:inline-block;padding:6px 10px;margin-right:8px;border:1px solid #eee}
+ .cardLabel{cursor:pointer}
+ .cardNumber{cursor:pointer;font-weight:600}
+ .navCell{cursor:pointer;padding:2px 6px;display:inline-block;border:1px solid #eee}
  #panel{margin-top:12px;padding:8px;border:1px solid #ddd;max-width:520px}
 </style>
 
@@ -111,10 +119,32 @@
   they must stay clickable.
 -->
 <div id="flatnav">
-  <div class="gridCell">Germplasms</div>
-  <div class="gridCell">Trials</div>
-  <div class="gridCell">Inventory</div>
-  <div class="gridCell">Observations</div>
+  <div class="navCell">Germplasms</div>
+  <div class="navCell">Trials</div>
+  <div class="navCell">Inventory</div>
+  <div class="navCell">Observations</div>
+</div>
+
+<h2>10. The same label in two places (both must stay uniquely targetable)</h2>
+<!--
+  The 2026-08-28 crawl refused 308 controls as `locator-not-unique`, and they
+  were navigation: the real PhenomeOne research-group screen puts "Germplasms" on
+  a tab AND on a summary card, so `getByText('Germplasms')` matches two elements
+  and the crawler will not click an ambiguous locator. Reproduced exactly, with
+  the framework's own class names as the only distinguishing handle.
+
+  `tabCell_actv` is here on purpose: a state modifier must never reach a locator,
+  or it stops matching the moment another tab is selected.
+-->
+<div id="tabbar">
+  <div class="tabCell tabCell_actv">Germplasms</div>
+  <div class="tabCell">Studies</div>
+  <div class="tabCell">Plots</div>
+</div>
+<div id="cards">
+  <div class="card"><div class="cardLabel">Germplasms</div><div class="cardNumber">10</div></div>
+  <div class="card"><div class="cardLabel">Studies</div><div class="cardNumber">2</div></div>
+  <div class="card"><div class="cardLabel">Plots</div><div class="cardNumber">18</div></div>
 </div>
 
 <h2>8. A real data grid with headers (must survive)</h2>

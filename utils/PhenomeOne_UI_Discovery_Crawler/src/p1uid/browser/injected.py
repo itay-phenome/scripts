@@ -156,9 +156,18 @@ function isPointerLeaf(el) {
 // Signature for "how many things on this page look exactly like this one".
 // Corroboration: a lone pointer-div could be anything, but one row among many
 // identical rows is a list, and a list is navigation.
+//
+// State modifiers are stripped first. A tab bar renders the current tab as
+// `tabCell tabCell_actv`, which made the ACTIVE tab a shape of its own -
+// `leafSiblings` counted 1, corroboration refused it, and the one tab the user
+// is looking at was the one the crawler would not classify. If filtering leaves
+// nothing (a row whose only class is `selectedTreeRow`), the raw list is kept
+// rather than collapsing the element to a bare tag name.
 function leafSignature(el) {
-  const cls = (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/)
-    .filter(Boolean).sort().join('.');
+  const raw = (typeof el.className === 'string' ? el.className : '').trim()
+    .split(/\s+/).filter(Boolean);
+  const stable = raw.filter((c) => !STATE_CLASS.test(c));
+  const cls = (stable.length ? stable : raw).sort().join('.');
   return el.tagName.toLowerCase() + (cls ? '.' + cls : '');
 }
 
@@ -631,23 +640,73 @@ function elementRecord(el, frame) {
   // Shape signature for a semantics-free control, so the classifier can ask
   // 'how many things on this page look exactly like this?' before trusting it.
   if (rec.type === 'clickable') rec.leafSig = leafSignature(el);
+  // A class-based scope for elements whose only handle is their text, so an
+  // ambiguous label can still yield a unique locator.
+  if (rec.directText) {
+    const cs = classSelector(el);
+    if (cs) rec.classSel = cs;
+  }
   if (el.tagName === 'SELECT') {
     rec.options = Array.from(el.options).slice(0, 25).map(o => clip(o.textContent, 60)).filter(Boolean);
   }
   return rec;
 }
 
+// A class-based selector for an element whose only other handle is its text.
+//
+// Measured on real PhenomeOne (2026-08-28): 308 of the last crawl's refusals
+// were `locator-not-unique`, and they were navigable controls, not junk - the
+// `Germplasms` TAB and the `Germplasms 10` summary CARD carry the same label, so
+// `getByText('Germplasms')` matches two elements and the crawler refuses both.
+// Scoping the text to the control's own design-system class separates them.
+//
+// Only a framework's own vocabulary qualifies. Rejected:
+//  * anything with a digit run, a hash, or a CSS-module/emotion shape
+//    (`css-1x2y3z`, `jsx-1234`) - generated, so it changes on every build;
+//  * state modifiers (`...actv`, `selected`, `open`, `focus`) - they describe
+//    the moment, not the control, and a locator built from one stops matching
+//    the instant the user clicks something else.
+const VOLATILE_CLASS = [
+  /\d{3,}/, /^css-[a-z0-9]{4,}$/i, /^jsx-\d+/i, /^sc-[a-z0-9]{5,}$/i,
+  /^emotion-/i, /^[a-z]+-[a-z0-9]{6,}$/i, /^ng-tns-/i, /^_[a-zA-Z0-9]{5,}$/
+];
+const STATE_CLASS = /(actv|active|selected|checked|current|open(ed)?|expand(ed)?|collaps|focus|hover|hidden|disabled|dragging|highlight)/i;
+
+function stableClasses(el) {
+  const raw = (typeof el.className === 'string' ? el.className : '').trim();
+  if (!raw) return [];
+  return raw.split(/\s+/).filter((c) => {
+    if (!c || c.length < 3 || c.length > 40) return false;
+    if (STATE_CLASS.test(c)) return false;
+    for (const re of VOLATILE_CLASS) if (re.test(c)) return false;
+    return true;
+  }).slice(0, 2);
+}
+
+// `div.dhxtabbar_tab_text` - the shape, without the text. The generator pairs it
+// with `:text-is(...)` only when that pair is unique on the page.
+function classSelector(el) {
+  const cls = stableClasses(el);
+  if (!cls.length) return '';
+  return el.tagName.toLowerCase() + '.' + cls.join('.');
+}
+
 // ------------------------------------------------- uniqueness counters
 function buildCounts(records) {
   const c = { roleName: {}, role: {}, text: {}, testid: {}, id: {}, nameAttr: {},
-              placeholder: {}, label: {}, title: {}, href: {} };
+              placeholder: {}, label: {}, title: {}, href: {}, classText: {} };
   const bump = (m, k) => { if (k) m[k] = (m[k] || 0) + 1; };
   for (const r of records) {
     if (r.role) {
       bump(c.role, r.role);
       bump(c.roleName, r.role + ' ' + r.name.toLowerCase());
     }
-    if (r.directText) bump(c.text, r.directText.toLowerCase());
+    if (r.directText) {
+      bump(c.text, r.directText.toLowerCase());
+      // How many elements share BOTH this shape and this text - the question the
+      // scoped-text locator needs answered before it can be trusted.
+      if (r.classSel) bump(c.classText, r.classSel + ' ' + r.directText.toLowerCase());
+    }
     for (const k of TESTID_ATTRS) if (r.attrs[k]) bump(c.testid, k + ' ' + r.attrs[k]);
     bump(c.id, r.attrs['id']);
     bump(c.nameAttr, r.attrs['name']);

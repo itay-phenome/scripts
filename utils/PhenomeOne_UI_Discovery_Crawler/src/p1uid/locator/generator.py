@@ -6,11 +6,15 @@ Strategy order, best first:
   3. label                       -> getByLabel
   4. stable semantic attribute   -> getByPlaceholder / getByTitle / [name=...] / #id
   5. unique meaningful text      -> getByText
-  6. simple stable CSS          -> tag[attr=...]
+  6. the control's own shape + text -> tag.designSystemClass:text-is("...")
+     or simple stable CSS          -> tag[attr=...]
   7. structural (role + nth)     -> LAST RESORT, always LOW
 
 Deliberately never produced: XPath, nth-child chains, absolute DOM paths, or
-selectors built from framework-generated class names / volatile ids.
+selectors built from framework-generated class names / volatile ids. A class is
+used at tier 6 only when the injected core judged it part of the framework's own
+vocabulary - not generated, not a state modifier - and only when shape+text
+resolves to exactly one element.
 """
 from __future__ import annotations
 
@@ -96,6 +100,7 @@ def candidates(el: dict[str, Any], counts: dict[str, dict[str, int]],
     c_nameattr = counts.get("nameAttr", {})
     c_text = counts.get("text", {})
     c_role = counts.get("role", {})
+    c_classtext = counts.get("classText", {})
 
     # --- 1. test ids -------------------------------------------------------
     for attr in TESTID_ATTRS:
@@ -181,7 +186,34 @@ def candidates(el: dict[str, Any], counts: dict[str, dict[str, int]],
                            {"text": text, "exact": True}, est,
                            confidence=_tier_confidence(5, est)))
 
-    # --- 6. simple stable CSS (role attribute) ----------------------------
+    # --- 6. the control's own shape, plus its text ------------------------
+    #
+    # For a design system that sets no role, no href and no test id, text is the
+    # only handle - and a label is not always unique. Measured on real PhenomeOne
+    # (2026-08-28): 308 of one crawl's refusals were `locator-not-unique`, and
+    # they were navigable controls: the `Germplasms` tab and the `Germplasms 10`
+    # summary card share a label, so `getByText` matched two elements and the
+    # crawler refused both, leaving the tabs unreachable.
+    #
+    # `div.dhxtabbar_tab_text:text-is("Germplasms")` separates them. The class
+    # comes from `classSelector` in the injected core, which keeps only the
+    # framework's own vocabulary - never a generated name, never a state
+    # modifier like `...actv`, which would stop matching the moment the user
+    # selects another tab. Emitted only when shape+text is unique on the page, so
+    # it can never make ambiguity worse.
+    class_sel = el.get("classSel") or ""
+    if class_sel and text and 1 <= len(text) <= 60:
+        est = c_classtext.get(f"{class_sel} {text.lower()}", 1)
+        if est == 1:
+            sel = f'{class_sel}:text-is({_css_value(text)})'
+            out.append(Locator("css", 6,
+                               f"locator({_q_js(sel)})", f"locator({_q_py(sel)})",
+                               {"css": sel, "via": "class+text", "text": text}, est,
+                               confidence=_tier_confidence(6, est),
+                               notes=["scoped by the design-system class because the "
+                                      "text alone is not unique on this page"]))
+
+    # --- 6b. simple stable CSS (role attribute) ---------------------------
     if attrs.get("role") and not name:
         sel = f"[role={_css_value(attrs['role'])}]"
         est = c_role.get(role, 1)

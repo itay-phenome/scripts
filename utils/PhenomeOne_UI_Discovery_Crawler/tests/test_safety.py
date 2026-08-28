@@ -480,6 +480,36 @@ def semantics_free_tree() -> None:
                   str([(n, rows[n][2].classification if n in rows else "MISSING")
                        for n in flat]))
 
+            # --- the same label twice: still uniquely targetable -------------
+            #
+            # 308 refusals in the 2026-08-28 crawl were `locator-not-unique`, and
+            # they were navigation: a tab and a summary card share a label, so
+            # `getByText` matched two elements and the crawler refused both.
+            dupes = [(el, loc) for _f, el, loc in res.rows
+                     if (el.get("name") or "").strip() == "Germplasms"]
+            # Three of them on this page: a nav item (section 9), a tab and a
+            # summary card. `getByText('Germplasms')` matches all three.
+            check("all three 'Germplasms' controls are discovered", len(dupes) == 3,
+                  f"{len(dupes)} found")
+            check("each one resolves to exactly ONE element",
+                  all(loc.matches == 1 for _e, loc in dupes),
+                  str([(loc.matches, loc.js[:44]) for _e, loc in dupes]))
+            check("neither fell back to plain ambiguous text",
+                  not [l for _e, l in dupes if l.js.startswith("getByText(")],
+                  str([l.js[:44] for _e, l in dupes]))
+            scopes = sorted(l.args.get("css", "").split(":text-is")[0] for _e, l in dupes)
+            check("each is scoped by its own design-system class",
+                  scopes == ["div.cardLabel", "div.navCell", "div.tabCell"], str(scopes))
+            check("a state modifier never reaches the locator",
+                  not [l for _e, l in dupes if "actv" in l.js],
+                  str([l.js[:52] for _e, l in dupes]))
+            tab = [l for e, l in dupes if "tabCell" in l.js]
+            check("the tab is auto-clickable now that it is unambiguous",
+                  bool(tab) and safety.classify(
+                      [e for e, l in dupes if "tabCell" in l.js][0],
+                      origin=engine.origin).auto_clickable,
+                  str([l.js[:52] for l in tab]))
+
             # --- anonymous header-free tables are layout, not structure ------
             tables = [el for _f, el, _l in res.rows if el.get("type") == "table"]
             headed = [t for t in tables if "Trial" in ((t.get("grid") or {}).get("columns") or [])]
