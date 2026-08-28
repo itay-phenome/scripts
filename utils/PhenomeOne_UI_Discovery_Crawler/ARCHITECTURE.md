@@ -36,6 +36,8 @@ src/p1uid/
   discovery/stability.py  waitStable(): settle detection for autonomous discovery
   crawler/safety.py       SAFE_NAVIGATION / CONDITIONAL / DANGEROUS / UNKNOWN
   crawler/bfs.py          Safe Crawl: budgeted, read-only autonomous exploration
+  crawler/outcomes.py     what an observation MEANS: facts, poisoning, productivity
+  crawler/surfaces.py     Surface/SurfaceRegistry/scope_of(): tabs, windows, popups
   functional/steps.py     declarative test model (navigate/click/fill/select/assert)
   functional/runner.py    executes tests; fails closed on destructive actions
   functional/data.py      RUN_ID, test-owned records, cleanup ledger
@@ -184,11 +186,19 @@ element record alone - no clicking, no model, no network. Three rules shape it:
 1. **Fail closed.** Only positively-recognised navigation (tabs, same-origin
    links, expanders, pagination, menu openers) becomes SAFE_NAVIGATION.
    Everything else lands in CONDITIONAL or UNKNOWN. An unlabelled icon button is
-   UNKNOWN - it might be Save, it might be Delete.
+   UNKNOWN - it might be Save, it might be Delete. One corroborated exception: a
+   labelled control with no semantics at all becomes SAFE_NAVIGATION when at
+   least three controls of the same shape share the page, because a row in a list
+   navigates rather than acts (`list-shape`; real dhtmlxTree markup made every
+   screen unclickable without it).
 2. **Structure beats words.** `<button>` with no `type` inside a form submits it,
    so a button captioned "Go" in a POST form is DANGEROUS. Likewise
    `input[type=submit|reset|image]`, downloads, `mailto:`/`javascript:`/`blob:`/
-   `data:` URLs, cross-origin hrefs and `target=_blank`.
+   `data:` URLs and cross-origin hrefs. A destructive verb in a URL command
+   parameter (`?action=delete`) outranks the link text. `target=_blank` is *not*
+   in this list: where the click lands is observed after the fact instead
+   (`crawler/outcomes.py`), because refusing it made whole parts of an
+   application unreachable by construction.
 3. **One gate.** `auto_clickable` is the only thing a crawler consults, and it is
    forced False for DANGEROUS and UNKNOWN regardless of what the rules concluded.
 

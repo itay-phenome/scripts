@@ -4,14 +4,14 @@
 
 | | |
 |---|---|
-| Last updated | 2026-08-26 |
-| Version | 1.4.0 (discovery + **outcome-driven multi-surface crawl** + functional QA engine + real-application tuning) |
+| Last updated | 2026-08-28 |
+| Version | 1.6.0 (discovery + outcome-driven multi-surface crawl + functional QA engine + **session-first connect** + **semantics-free controls**) |
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed) |
-| Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (555 MB, v1.4.0, git-ignored) — built in `C:\Users\itay-b\p1uid-build`, then copied. See §5 |
+| Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (552 MB, git-ignored). **Rebuild before the next real run**: it prints 1.6.0 but was built 2026-08-27 10:15, before the 1.6.0 commit at 13:52, so the `list-shape` classifier may not be inside it. See §5 |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **647/647 passing** — 617 source (14 suites, 3 consecutive clean runs) + 30 packaged |
-| Blocked on | **Nothing local.** The intended workflow - a human signs in, then the tool runs itself - is implemented and test-proven: SCAN, TRAINING and SAFE CRAWL are not gated on the tool's own auth flag. Next step is a real Safe Crawl on PhenomeOne after a manual sign-in |
-| First real run | 2026-08-24 against `eksdemo-helm.phenome-networks.com`: exposed 4 bugs, all fixed (see §2.7) |
+| Tests | **637/637 source passing** — 14 suites, one clean run measured 2026-08-28 on 1.6.0, no flaky suite. `test_packaged.py` (30) not re-run in this pass - it needs a build, and `dist/` is stale |
+| Blocked on | **Nothing local.** The intended workflow - a human signs in once, then the tool runs itself - is implemented, test-proven, and now the primary GUI path (CONNECT + "then Safe Crawl"). What is missing is one **completed Safe Crawl on the real application, with its artifacts kept**. See §4 |
+| Real access so far | 2026-08-24 against `eksdemo-helm.phenome-networks.com` - login only, exposed 4 bugs (Phase 7). 2026-08-27 - connect + scan, produced Phases 13 and 14. **No `crawl-summary.json` or real `ui-map.json` exists on disk**: those findings survive as code comments only |
 
 ---
 
@@ -470,6 +470,127 @@ both replaced with the stronger property rather than deleted:
 Zero elements in the real map carry an `id` at all, so no id-based locator was
 ever generated. No change made.
 
+### Phase 13 — Session-first connect, and what the map was really made of (2026-08-27, v1.5.0)
+
+Driven by real access to PhenomeOne on 2026-08-27. Both the way in and the scan
+boundary changed. Every number below is a measurement from that access, dated in
+the code where it changed a decision - not a prediction.
+
+**A. CONNECT replaces "guess the login form" as the supported way in.** The
+user's framing (2026-08-27): *an authenticated browser session, then an
+autonomous full-site crawl*. Reading somebody's login form and typing into it is
+a guessing game that a two-step or scripted form wins; a stored Playwright
+`storage_state` is deterministic. New `Engine.op_connect(url)`: open the app, try
+the stored session, otherwise wait — no form parsing, no typing — until the
+application itself becomes reachable, then store the state DPAPI-encrypted and
+emit `connected`. `save_session()` and `session_is_valid()` are separate and
+public; the latter requires **both** no visible password field in any frame
+**and** `looks_authenticated()`, with a 15 s budget because PhenomeOne has taken
+up to 38 s to paint after a load.
+
+GUI: **CONNECT** is now the primary button, with a **"then Safe Crawl"** checkbox
+(default on) that hands straight over to autonomous exploration when `connected`
+arrives; form login is demoted to "Try form login". `remember_session` defaults
+to True.
+
+**`op_connect` is GUI-only so far.** The CLI still offers `--manual-login` and
+form login, so the CI path cannot use the supported entry point yet - see §4
+item 12.
+
+*Bug this fixed:* the stored session was loaded only when a checkbox had been
+ticked before launch, and "no login form present **and** I hold a saved session"
+was inferred to mean signed in — which is wrong for any page that simply has no
+form: a dashboard, an error page, a docs site. It is verified now, never assumed.
+
+**B. The crawl started in the wrong place.** `op_crawl` rooted itself at the URL
+in the box. PhenomeOne is hash-routed, so after signing in the location is
+`...#v=1&r=m&...&t=Overview`, and navigating back to the bare origin threw that
+away: the first real crawl explored a welcome screen whose only content was an
+embedded help widget. The crawl now roots where the browser actually **is**, and
+logs the location it adopted.
+
+**C. 75 of 80 elements on a screen belonged to somebody else's website.** An
+embedded support widget served from `knowledge-base.phenome-networks.com`
+contributed **75 of 80** elements on one screen and **75 of 107** on another. All
+cross-origin: the crawler can never click them and no generated test can ever
+target them, so the map was mostly a third-party help centre with the
+application's own controls as a rounding error inside it. `_scannable_frames`
+now maps the main frame plus **same-origin** children only (strict
+scheme+host+port), and logs what it skipped. Login detection still searches
+**every** frame — an identity provider legitimately lives in a cross-origin
+iframe. This is the scan-boundary counterpart to Phase 12's origin-based crawl
+scope, which had already caught the same host.
+
+**D. "0 safe action(s) of 80 elements" is not a diagnosis.** Two additions, both
+running only when a state offered nothing:
+* `SafeCrawler._explain_nothing_clickable()` re-classifies the state's rows and
+  logs histograms — by frame host, by classification, by the rule that decided —
+  plus up to 14 sample elements. Metadata only: names, types, rule names, no
+  field values. It has to report at the point of decision: persisted records drop
+  `attrs` and keep only part of `link`, so replaying the classifier over the
+  stored map gives a different, more permissive answer than the live run.
+* `missedClickables(n)` in the injected core reports visible leaf nodes with
+  `cursor: pointer` that the harvester did **not** collect, with tag, class,
+  role, tabindex and clipped text. This is the probe that found Phase 14.
+
+**E. The GUI could not run a small crawl.** It called `op_crawl()` with no
+limits, so it always ran the 250-action default, and the only way to try a
+20-action first crawl was the CLI — which needs its own login. There is now a
+**max actions** spinbox next to SAFE CRAWL, defaulting to 20.
+
+`test_recovery.py` gained 9 checks over the connect flow: one manual sign-in
+reaches authenticated and stores the session, the blob is a Playwright
+`storage_state` containing **no password**, a later run opens already
+authenticated with no sign-in, and an expired session authenticates nobody and
+asks for one more sign-in.
+
+### Phase 14 — Controls with no semantics at all (2026-08-27, v1.6.0)
+
+The probe from Phase 13D answered the question the second real run raised: why
+did an entire application screen yield 5 harvested elements, none of them
+navigation, so that an autonomous crawl had nothing to click **on any screen**?
+
+Because the PhenomeOne research-group tree — Mine, Tomato, Tomato Demo,
+Eggplant, Pepper-ID1533, Sorghum — is dhtmlxTree markup:
+`<td class="dhxTextCell standartTreeRow"><span>Tomato</span></td>`. No role, no
+`href`, no `tabindex`, no test id. It matched none of the harvester's selectors,
+and anything that did reach the classifier was `clickable` with no semantics, so
+it was UNKNOWN and therefore never clicked. This is the Phase 12B problem one
+layer lower: there the vocabulary could not move, here there was nothing to
+classify in the first place.
+
+**Harvest.** `isPointerLeaf(el)` in the injected core accepts a visible, enabled
+leaf `DIV/SPAN/TD/LI/P/I/A/B` with a direct label, no nested real control, and a
+computed `cursor: pointer` — the signal a design system leaves behind when it
+makes something clickable. Cheap tag and child tests run first because reading a
+computed style forces layout work and this is evaluated over the whole document.
+It takes the **innermost** such node: dhtmlx wraps every row twice, and
+harvesting both would make each row's locator match two elements, which the
+crawler skips as ambiguous — the tree would have stayed unreachable. `classify()`
+consults it **before** a layout role wins, or the row would be reported as a
+table cell.
+
+**Corroboration, not a guess.** `leafSignature(el)` (tag + sorted class list) is
+stored as `leafSig`, and a pass at the end of `collect()` counts how many
+harvested controls share each shape into `leafSiblings`. One pointer-div could be
+anything; one row among seven identical rows is a list.
+
+**Classification.** In `safety._classify`, an opaque `clickable` with an own
+label and `leafSiblings >= _LIST_SHAPE_MIN` (**3** — the smallest number that
+cannot be a coincidence of layout; a two-item menu is better left UNKNOWN) is
+SAFE_NAVIGATION under a new `list-shape` rule: *a row in a list navigates, it
+does not act*. It is the **last** thing tried. Every veto above it has already
+run — a destructive verb in the label, form participation, a POST, cross-origin,
+hidden, disabled — so this only decides the leftover case of a labelled row among
+peers.
+
+New mock page `tests/mock_app/tree.html` reproduces the real dhtmlxTree DOM, and
+`test_safety.py` gained 11 checks (105 → 116): every row is discovered, counted,
+SAFE_NAVIGATION and auto-clickable with a **unique** text locator; a lone pointer
+node stays UNKNOWN; exactly two of a shape is still not a list; a destructive
+label stays DANGEROUS however list-shaped; no auto-clickable row carries a
+blocking flag.
+
 ---
 
 ## 3. Test status
@@ -479,15 +600,21 @@ Run from the source directory (`python tests/<name>.py`).
 Run everything three times from a clean state with:
 `python tests/run_all.py --runs 3` (flakiness is reported per suite).
 
+**Last measured 2026-08-28** on the 1.6.0 source: `--runs 1`, **637/637, no
+failing and no flaky suite**, 9 min 40 s wall clock. Slowest suites:
+`test_crawler.py` 210 s, `test_login_variants.py` 91 s, `test_redteam.py` 84 s.
+`test_packaged.py` was **not** re-run - it needs a build, and the build in `dist/`
+is older than the 1.6.0 source (see §5).
+
 | Suite | Checks | Covers |
 |---|---|---|
 | `test_units.py` | 123 | fingerprints incl. **dialog-title normalisation (40)**, locators, store merge, redaction, login analysis, nav tree, report |
-| `test_safety.py` | 105 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary |
+| `test_safety.py` | 116 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary and the **semantics-free dhtmlxTree rows (11)** |
 | `test_crawler.py` | 22 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_surfaces.py` | 45 | surface scope + the outcome decision table (no browser) |
 | `test_multisurface.py` | 35 | **autonomous crawling across tabs/windows**: menu with no fingerprint change, same-origin tab and popup explored, off-origin closed, parent crawl survives |
 | `test_pipeline.py` | 50 | workflows, UI diff, codegen, JUnit, CI exit codes |
-| `test_recovery.py` | 23 | the live-environment failures above, incl. the **Manual Login double-press race** |
+| `test_recovery.py` | 32 | the live-environment failures above, incl. the **Manual Login double-press race** and the **CONNECT/stored-session flow (9)** |
 | `test_hardgrid.py` | 31 | component-framework UI: portaled combobox, virtualised grid, volatile dialog titles |
 | `test_functional.py` | 48 | the functional milestone: full CRUD lifecycle, both fail-closed guards, evidence, cleanup-after-failure, Safe Crawl untouched |
 | `test_redteam.py` | 37 | adversarial surface: URL commands, popups, JS downloads, nested iframes, loops, ambiguity, unlabelled controls |
@@ -496,7 +623,7 @@ Run everything three times from a clean state with:
 | `test_login_variants.py` | 13 | slow form, iframe IdP form, landing page, no form, **late-rendering username field** (appears / never appears) |
 | `test_gui_smoke.py` | 21 | real Tk window driving the real browser |
 | `test_packaged.py` | 30 | relocated frozen build in a stripped environment |
-| **Total** | **647** | 617 source + 30 packaged, all passing as of this update |
+| **Total** | **667** | 637 source (measured 2026-08-28, all green) + 30 packaged (run at build time only - see §5) |
 
 `test_packaged.py` takes a path: `python tests/test_packaged.py <dist>/PhenomeOne-UI-Discovery`.
 It **moves** the folder (relocation test), so pass the current location.
@@ -511,21 +638,33 @@ It **moves** the folder (relocation test), so pass the current location.
 
 ## 4. Remaining work
 
-### Blocked — needs real access (do this first next session)
-1. **EKS-LAB / PhenomeOne validation.** Still the main gap: only the login path
-   has ever touched the real app (one run, 2026-08-24), and it found four bugs
-   within 30 seconds - expect more. Needed: a URL + credentials for a
-   **non-production** instance. Then:
-   * `PhenomeOne-UI-Discovery.exe` → LOGIN (or Manual Login) → SCAN → TRAINING.
-   * Check `logs/discovery.log` for the login diagnostics block if login fails.
-   * Only after a clean manual pass, try **SAFE CRAWL** with a small budget
-     (`--crawl-max-actions 20`) and read `crawl-summary.json` before widening.
-2. **Tune the classifier against the real vocabulary.** PhenomeOne will have verbs
-   the word lists do not know. The failure mode is safe (UNKNOWN → not clicked),
-   so expect *under*-exploration first. Add real labels to
-   `_DANGEROUS_WORDS` / `_NAV_WORDS` in `crawler/safety.py`.
-3. **Confirm the long-path limit** on the target workstation (`C:\Tools\` is safe).
-4. **Stale build folders on this machine** (~2.2 GB) — `p1uid-build` (broken, no
+### Next real-application run (do this first next session)
+
+Real access has happened twice: 2026-08-24 (login only, four bugs) and
+2026-08-27, which produced Phases 13 and 14. What is still missing is
+**a completed Safe Crawl with artifacts on disk**: no run has yet written a
+`crawl-summary.json` or a `ui-map.json` from the real application, so those
+findings survive only as code comments and as log reads at the time.
+
+1. **Rebuild `dist/` first.** The build in the repo reports 1.6.0 but was
+   produced at 10:15 on 2026-08-27, before the 1.6.0 commit at 13:52 — so the
+   `list-shape` classifier may not be inside it, and without that change the
+   crawl still has nothing to click. See §5.
+2. **Then run it:** CONNECT (the stored session in
+   `dist\PhenomeOne-UI-Discovery\sessions\session.bin` may still be valid) →
+   leave "then Safe Crawl" ticked → 20 actions → read
+   `output/crawl-summary.json` and `logs/discovery.log` before widening. The log
+   now explains any state that offered nothing (Phase 13D), so an
+   under-exploring crawl is diagnosable without a rerun.
+3. **Keep the artifacts this time.** Copy `output/` and `logs/discovery.log` out
+   of `dist/` (both git-ignored, and both empty as of 2026-08-28) so the next
+   session can compare instead of re-measuring.
+4. **Tune the classifier against the real vocabulary** — still the expected next
+   gap. The failure mode is safe (UNKNOWN → not clicked), so expect
+   *under*-exploration first. Add real labels to `_DANGEROUS_WORDS` /
+   `_NAV_WORDS` / `_APP_NAV_WORDS` in `crawler/safety.py`.
+5. **Confirm the long-path limit** on the target workstation (`C:\Tools\` is safe).
+6. **Stale build folders on this machine** (~2.2 GB) — `p1uid-build` (broken, no
    exe), `p1uid-build-v2` (v1.0.0), `p1uid-final` (v1.1.0), `p1uid-final2`
    (v1.1.1), `QA Build With Spaces` (empty) and `Another QA Folder (v2) & more`
    (portability-test copy) are all superseded by **`p1uid-final3`**. Deleting
@@ -539,19 +678,22 @@ end to end (login + scan + training + crawl + codegen) in a stripped environment
 Exit 0, every artifact written, no secret leaked.
 
 ### Not blocked — next code steps
-5. **Crawl performance**: validation is ~9 ms/element and replays cost 1–2 s.
+7. **Crawl performance**: validation is ~9 ms/element and replays cost 1–2 s.
    Options: cache validation per (state, element) across hops; prefer `go_back()`
    more aggressively; parallelise validation.
-6. **CONDITIONAL opt-in**: the crawler currently clicks SAFE_NAVIGATION only.
+8. **CONDITIONAL opt-in**: the crawler currently clicks SAFE_NAVIGATION only.
    A `--allow-conditional` flag (dialog openers, expanders in forms) would widen
    coverage; must stay off by default.
-7. **Workflow replay**: workflows are recorded but not replayed. `goToState()` in
+9. **Workflow replay**: workflows are recorded but not replayed. `goToState()` in
    the generated `navigation.ts` is the obvious foundation.
-8. **`codegen` uses `eval()`** in `goToState()` to turn a stored locator string
+10. **`codegen` uses `eval()`** in `goToState()` to turn a stored locator string
    into a Locator. Fine for generated internal helpers, but worth replacing with
    a structured switch over `locatorSpec.args`.
-9. **Jenkinsfile** — not written. The CLI + JUnit XML are ready for it.
-10. **GUI crawl budget controls** — currently uses defaults; the CLI exposes them.
+11. **Jenkinsfile** — not written. The CLI + JUnit XML are ready for it.
+12. **`--connect` for the CLI**: `op_connect()` (Phase 13A) is wired to the GUI
+   button only. The CLI, which is the CI path, still has `--manual-login` and
+   form login. A `--connect` flag reusing the stored session would let Jenkins
+   run the whole thing unattended after one human sign-in on the agent.
 
 ---
 
@@ -617,18 +759,23 @@ src/p1uid/
   discovery/stability.py wait_stable()
   crawler/safety.py      action classification
   crawler/bfs.py         Safe Crawl
+  crawler/outcomes.py    observation -> facts (no browser, fully unit-tested)
+  crawler/surfaces.py    Surface, SurfaceRegistry, scope_of()
   locator/               generator + validator
   state/fingerprint.py   UI-state identity
   store/uimap.py         incremental map
   navigation/graph.py    graph + readable tree
   training/trainer.py    action↔state correlation
   training/workflows.py  named workflow recording
-  reporting/html_report.py, reporting/junit.py
+  functional/           declarative steps, runner, test data, evidence, results
+  reporting/html_report.py, reporting/junit.py, reporting/junit_functional.py
   diff.py, codegen.py
   security/dpapi.py, security/session_store.py
   gui/main_window.py
 
-tests/                   7 source suites + test_packaged.py + mock_app/
+tests/                   14 source suites + test_packaged.py + run_all.py
+tests/mock_app/          12 pages incl. redteam.html, hardgrid.html, tree.html
+tests/functional/        declarative CRUD test definitions (JSON)
 samples/                 real output from the mock (report, map, graph, generated TS)
 ```
 
@@ -650,6 +797,16 @@ training-summary, crawl-summary, workflows, ui-diff, generated/), `reports/`
 5. The password is memory-only; sessions are DPAPI-encrypted; logs are redacted.
 6. No business data is persisted — grids store column names + row count only.
 7. Training observes; it never clicks.
+8. A control with **no semantics** is auto-clickable only with corroboration:
+   `clickable` + its own label + at least 3 same-shaped peers on the page, and
+   only after every veto in (1) has already run. A lone pointer node, or two of
+   a shape, stays UNKNOWN. (Phase 14.)
+9. Cross-origin frames are never mapped and never crawled. **Login detection is
+   the one exception** and still reads every frame, because an identity provider
+   legitimately lives in a cross-origin iframe. (Phase 13C.)
+10. Authentication never guesses: `session_is_valid()` requires no visible
+   password field **and** the application rendering. A visible password field
+   always means not authenticated. (Phase 13A.)
 
 `test_crawler.py` asserts (1)–(4) against a mock that records every side effect
 it would have suffered. Keep that test green.

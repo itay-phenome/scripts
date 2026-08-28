@@ -22,8 +22,12 @@ is plain DOM + ARIA analysis and Playwright locator validation.
 1. Copy the `PhenomeOne-UI-Discovery` folder anywhere — `C:\Tools\`, a USB stick,
    another workstation. Keep the path reasonably short (see *Known limitations*).
 2. Run `PhenomeOne-UI-Discovery.exe`.
-3. Enter URL / username / password and press **LOGIN**, or press **Manual Login**
-   and sign in yourself in the browser window.
+3. Enter the URL and press **CONNECT**. A session stored earlier is reused and
+   verified; otherwise sign in once in the browser window yourself and it is
+   saved for next time. Leave **then Safe Crawl** ticked and the tool hands
+   straight over to autonomous exploration once you are in (budget: the **max
+   actions** box, default 20). **Try form login** and **Manual Login** remain for
+   the older flows.
 4. **SCAN CURRENT PAGE** analyses the screen you are looking at.
 5. **START TRAINING**, then just use PhenomeOne normally. Every screen, tab,
    dialog and menu you visit is learned. **STOP TRAINING** writes everything out.
@@ -149,7 +153,7 @@ framework-generated class names / volatile ids (`mat-input-4821`, `:r3:`, …).
 * The password lives **in memory only**. It is never written to JSON, YAML, INI,
   logs, reports, UI maps, or command-line arguments, and never appears in
   `config\settings.json` (URL + username + flags only).
-* “Remember authenticated session” stores the Playwright `storage_state`
+* “Remember session” stores the Playwright `storage_state`
   (cookies/localStorage) — **not** the password — in `sessions\session.bin`,
   encrypted with **Windows DPAPI** under your user account. Copy it to another
   machine and it is useless. If DPAPI is unavailable the session is simply not
@@ -222,7 +226,9 @@ See `ARCHITECTURE.md` for the module map and design decisions.
   anything when the form cannot be identified confidently — e.g. multi-step
   flows or a redirect to an external IdP. Use **Manual Login** for those; the
   log prints the page structure so you can see what it found.
-* Not tested against the real PhenomeOne application; all verification here is
+* Verified against the real PhenomeOne twice — 2026-08-24 (login) and 2026-08-27
+  (connect + scan), both of which changed the product. A full Safe Crawl on the
+  real application has **not** been completed yet, and every automated suite runs
   against the bundled mock SPA.
 
 ## Autonomous discovery (Safe Crawl)
