@@ -669,11 +669,11 @@ findings survive only as code comments and as log reads at the time.
    *under*-exploration first. Add real labels to `_DANGEROUS_WORDS` /
    `_NAV_WORDS` / `_APP_NAV_WORDS` in `crawler/safety.py`.
 5. **Confirm the long-path limit** on the target workstation (`C:\Tools\` is safe).
-6. **Stale build folders on this machine** (~2.2 GB) — `p1uid-build` (broken, no
-   exe), `p1uid-build-v2` (v1.0.0), `p1uid-final` (v1.1.0), `p1uid-final2`
-   (v1.1.1), `QA Build With Spaces` (empty) and `Another QA Folder (v2) & more`
-   (portability-test copy) are all superseded by **`p1uid-final3`**. Deleting
-   them avoids clicking a dead folder and frees ~2.2 GB.
+6. **Build leftovers** (checked 2026-08-28): the six stale folders this item used
+   to list are gone. What remains is
+   `C:\Users\itay-b\p1uid-build\relocated-115359` (553 MB) - the copy
+   `test_packaged.py` verified and moved, already copied into `dist/`. The next
+   `build_portable.py --clean` removes it; delete it sooner if the space matters.
 
 ### Portability status (verified 2026-08-25)
 Built into `C:\Users\itay-b\QA Build With Spaces\`, verified there (30/30),
