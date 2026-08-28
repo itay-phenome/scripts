@@ -751,6 +751,43 @@ skipped: same-shape-known-edge = 7
 Three probes, then every tab - and the tree is still tried first, because it
 still sorts first.
 
+**B. Skipping is not enough: the window was already full.** Run on the real
+application, the rule fired exactly as designed - *"Learned: every
+span.standartTreeRow so far from v-1-r-m-oid-m-otype-1-t-overview reaches
+v-1-r-m-otype-5"* - and skipped 54 siblings. The crawl then finished after **6
+clicks** with an empty queue, and the user's verdict was the correct one:
+"doesn't changed much".
+
+`_candidates` sorts every safe action and truncates to `per_state_actions` (30).
+The tree sorts first and has dozens of rows, so the 30-slot window was already
+nothing but rows before a single one was clicked. Skipping them does not promote
+anything into the window - it empties it. 24 wasted slots, 6 real clicks, tabs
+and modules never even considered.
+
+`_interleave_by_shape` now rotates one candidate per shape per round, so the
+window spans what a screen actually offers instead of whatever it has most of.
+
+*The first version of that rotation cost 5x the coverage and the existing tests
+caught it.* Rotating across the whole candidate list ignores `_TYPE_ORDER`, which
+deliberately puts navigation - tabs, tree items, links - ahead of menu openers
+and buttons. On the mock's home page it promoted an "Actions" menu ahead of the
+plain links; the menu changed the surface, exploration lost the thread, and the
+crawl fell from **11 states to 2**. Rotation now happens strictly *inside* one
+type band: bands keep their order, shapes take turns within them.
+
+*And the mock had been passing for a reason the real application does not have.*
+`chrome.html` originally had ten rows - fewer than `per_state_actions`, so the
+truncation that caused the whole problem never happened and the tabs sat inside
+the window anyway. It has **40** rows now, and the comment says why the number
+is load-bearing. With them:
+
+```
+clicked: Group 01, Trials, Group 02, Variables, Group 03, Zones, Group 01, Trials
+skipped: same-shape-known-edge = 24
+```
+
+One row, one tab, alternating - which is the behaviour the real screen needs.
+
 ---
 
 ## 3. Test status

@@ -160,11 +160,17 @@ def main() -> int:
             # is present in every state and sorts first, and once a research
             # group had one identity every row led to the same place. All 60
             # clicks of a 400-action crawl were tree rows and no tab was ever
-            # reached. `chrome.html` is that shape: 10 rows that all navigate to
+            # reached. `chrome.html` is that shape: 40 rows that all navigate to
             # `#panel=open`, and three tabs that each open a state of their own
-            # and sort AFTER every row ("Temp" < "Tomato" < "Trials"). On an
-            # 8-action budget the tabs are reachable only by learning that the
-            # rows are one edge.
+            # and sort AFTER every row ("Group 40" < "Trials").
+            #
+            # Forty rows is load-bearing. `per_state_actions` is 30 and the
+            # candidate list is truncated to it, so without interleaving by shape
+            # the window holds nothing but rows and no budget can reach a tab.
+            # An earlier version of this test used ten rows, passed, and hid
+            # exactly that: on the real application the equivalence rule skipped
+            # 54 rows and the crawl still ended after 6 clicks with the tabs
+            # never considered.
             root = server.url.rsplit("/app/", 1)[0] + "/"
             engine.call(lambda: engine.open_url(root + "chrome.html"), timeout=120)
             limits3 = CrawlLimits(max_states=10, max_actions=8, max_depth=3,
@@ -172,8 +178,7 @@ def main() -> int:
             engine.call(lambda: engine.op_crawl(limits3), timeout=600)
             s3 = json.loads(paths.CRAWL_SUMMARY_FILE.read_text(encoding="utf-8"))
             clicked3 = [t["action"] for t in s3["timeline"]]
-            ROWS = {"Canola", "Eggplant", "Kiwi", "Oilseed", "Peas", "Pepper",
-                    "Sorghum", "Temp", "Tomato", "Tomato Demo"}
+            ROWS = {f"Group {i:02d}" for i in range(1, 41)}
             TABS = {"Trials", "Variables", "Zones"}
             row_clicks = [c for c in clicked3 if c in ROWS]
             tab_clicks = [c for c in clicked3 if c in TABS]

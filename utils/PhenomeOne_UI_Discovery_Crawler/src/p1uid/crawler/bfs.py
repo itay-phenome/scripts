@@ -179,6 +179,52 @@ class SafeCrawler:
     def _skip(self, reason: str) -> None:
         self.result.skipped[reason] = self.result.skipped.get(reason, 0) + 1
 
+    def _interleave_by_shape(self, cands: list["_Candidate"]) -> list["_Candidate"]:
+        """Round-robin across shapes, so the per-state window is not one shape.
+
+        `_candidates` truncates to `per_state_actions` (30). Sorted purely by
+        type and name, that window fills with whatever there is most of - and on
+        real PhenomeOne (2026-08-28) that is the research-group tree, which sorts
+        first and has dozens of rows. The equivalence rule below then skipped 54
+        of them, correctly, but skipping does not promote anything into the
+        window: the crawl ran out of candidates after 6 clicks with the tabs and
+        modules never even considered.
+
+        Taking one candidate per shape per round keeps the original order inside
+        each shape while guaranteeing the window spans the controls a screen
+        actually offers.
+
+        Rotation happens strictly INSIDE one `_TYPE_ORDER` band. That priority is
+        load-bearing: it puts navigation - tabs, tree items, links - ahead of
+        menu openers and buttons. A first attempt rotated across the bands too,
+        which promoted an "Actions" menu ahead of the plain links on the mock's
+        home page; the menu changed the surface, exploration lost the thread and
+        the crawl fell from 11 states to 2. Bands stay in order; only shapes
+        within a band take turns.
+        """
+        bands: dict[int, list[_Candidate]] = {}
+        for c in cands:
+            band = _TYPE_ORDER.get(c.element.get("type", ""), 9)
+            bands.setdefault(band, []).append(c)
+
+        out: list[_Candidate] = []
+        for band in sorted(bands):
+            members = bands[band]
+            groups: dict[str, list[_Candidate]] = {}
+            for c in members:
+                shape = (self._shape_of(c.element)
+                         or f"{c.element.get('type', '')}:{c.element.get('role', '')}")
+                groups.setdefault(shape, []).append(c)
+            if len(groups) < 2:
+                out.extend(members)
+                continue
+            order = list(groups.values())           # dicts keep insertion order
+            for round_i in range(max(len(g) for g in order)):
+                for g in order:
+                    if round_i < len(g):
+                        out.append(g[round_i])
+        return out
+
     # ------------------------------------------------- action equivalence
     #
     # Two controls of the same SHAPE that lead from the same state to the same
@@ -297,6 +343,7 @@ class SafeCrawler:
             out.append(_Candidate(key, el, loc, frame, verdict))
         out.sort(key=lambda c: (_TYPE_ORDER.get(c.element.get("type", ""), 9),
                                (c.element.get("name") or "").lower(), c.key))
+        out = self._interleave_by_shape(out)
         if not out and res.rows:
             self._explain_nothing_clickable(res)
             self._nothing_clickable = True      # probe once, from the async caller

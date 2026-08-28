@@ -40,18 +40,25 @@
   <div class="tabCell">Zones</div>
 </div>
 
-<div id="tree">
-  <div class="treeRow">Canola</div>
-  <div class="treeRow">Eggplant</div>
-  <div class="treeRow">Kiwi</div>
-  <div class="treeRow">Oilseed</div>
-  <div class="treeRow">Peas</div>
-  <div class="treeRow">Pepper</div>
-  <div class="treeRow">Sorghum</div>
-  <div class="treeRow">Temp</div>
-  <div class="treeRow">Tomato</div>
-  <div class="treeRow">Tomato Demo</div>
-</div>
+<!--
+  FORTY rows, not ten, and that number is load-bearing. `per_state_actions` is
+  30, and the candidate list is truncated to it: with only ten rows the tabs sat
+  inside the window and the test passed for a reason the real application does
+  not have. On 2026-08-28 the equivalence rule skipped 54 tree rows on the real
+  app and the crawl still ended after 6 clicks, because the 30-slot window was
+  already full of rows before any of them was clicked. Every name here sorts
+  before "Trials", so nothing but shape interleaving can reach a tab.
+-->
+<div id="tree"></div>
+<script>
+ const TREE = document.getElementById("tree");
+ for (let i = 1; i <= 40; i++) {
+   const row = document.createElement("div");
+   row.className = "treeRow";
+   row.textContent = "Group " + String(i).padStart(2, "0");
+   TREE.appendChild(row);
+ }
+</script>
 
 <div id="main"><p id="panel">Nothing selected.</p></div>
 
