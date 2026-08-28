@@ -5,11 +5,11 @@
 | | |
 |---|---|
 | Last updated | 2026-08-28 |
-| Version | 1.8.0 (discovery + outcome-driven multi-surface crawl + functional QA engine + session-first connect + semantics-free controls + data-vs-control separation + **action equivalence**) |
+| Version | 1.9.0 (discovery + outcome-driven multi-surface crawl + functional QA engine + session-first connect + semantics-free controls + data-vs-control separation + action equivalence + **scan-on-arrival**) |
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed) |
 | Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (553 MB, git-ignored) - **1.7.0, verified 2026-08-28** (`test_packaged.py` 30/30 on the relocated folder) and used for the crawls in Phase 15. See §5 |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **669/669 source passing** — 14 suites, one clean run measured 2026-08-28 on 1.7.0, no flaky suite. Plus `test_packaged.py` 30/30 on the 1.7.0 build |
+| Tests | **681/681 source passing** — 14 suites, one clean run measured 2026-08-28 on 1.9.0, no flaky suite. Plus `test_packaged.py` 30/30 on the 1.9.0 build |
 | Blocked on | **Nothing local.** The intended workflow - a human signs in once, then the tool runs itself - is implemented, test-proven, and now the primary GUI path (CONNECT + "then Safe Crawl"). What is missing is one **completed Safe Crawl on the real application, with its artifacts kept**. See §4 |
 | Real access so far | 2026-08-24 against `eksdemo-helm.phenome-networks.com` - login only, exposed 4 bugs (Phase 7). 2026-08-27 - connect + scan, produced Phases 13 and 14. **No `crawl-summary.json` or real `ui-map.json` exists on disk**: those findings survive as code comments only |
 
@@ -905,7 +905,7 @@ is older than the 1.6.0 source (see §5).
 | Suite | Checks | Covers |
 |---|---|---|
 | `test_units.py` | 123 | fingerprints incl. **dialog-title normalisation (40)**, locators, store merge, redaction, login analysis, nav tree, report |
-| `test_safety.py` | 142 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary and the **semantics-free dhtmlxTree rows (11)** |
+| `test_safety.py` | 148 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary and the **semantics-free dhtmlxTree rows (11)** |
 | `test_crawler.py` | 28 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_surfaces.py` | 45 | surface scope + the outcome decision table (no browser) |
 | `test_multisurface.py` | 35 | **autonomous crawling across tabs/windows**: menu with no fingerprint change, same-origin tab and popup explored, off-origin closed, parent crawl survives |
@@ -919,7 +919,7 @@ is older than the 1.6.0 source (see §5).
 | `test_login_variants.py` | 13 | slow form, iframe IdP form, landing page, no form, **late-rendering username field** (appears / never appears) |
 | `test_gui_smoke.py` | 21 | real Tk window driving the real browser |
 | `test_packaged.py` | 30 | relocated frozen build in a stripped environment |
-| **Total** | **699** | 669 source (measured 2026-08-28 on 1.7.0, all green, no flaky suite) + 30 packaged (30/30 on the 1.7.0 build) |
+| **Total** | **711** | 681 source (measured 2026-08-28 on 1.9.0, all green, no flaky suite) + 30 packaged (30/30 on the 1.9.0 build) |
 
 `test_packaged.py` takes a path: `python tests/test_packaged.py <dist>/PhenomeOne-UI-Discovery`.
 It **moves** the folder (relocation test), so pass the current location.
@@ -934,7 +934,44 @@ It **moves** the folder (relocation test), so pass the current location.
 
 ## 4. Remaining work
 
-### Next real-application run (do this first next session)
+### Where the crawl stands (measured 2026-08-28 on 1.9.0)
+
+Five real crawls today. The last one, 400 actions / 900 s from the stored
+session, on a clean map:
+
+| | first run of the day | last run |
+|---|---|---|
+| states visited / in map | 1 / 3 | **6 / 8** |
+| navigation edges learned | 3 | **37** |
+| depth reached | 0 | **4** |
+| elements per state | 1005, growing every visit | 73-156, stable |
+| `ui-map.json` | 8.2 MB | 1.32 MB |
+| business data in the map | record names, counts, dates | none |
+| incidents / aborts | none | none |
+
+It clicks real navigation now - the `Entities`, `Variables`, `Images` and
+`Overview` tabs, and record rows that open Program screens:
+
+```
+v-1-r-m-oid-m-otype-1-t-overview (73)
+└── [**TestListPUI] -> v-1-r-m-otype-5 (156)
+    └── [Entities]  -> v-1-r-m-otype-5-2 (152)
+        └── [B]     -> v-1-r-m-otype-4 (119)
+            └── [Entities] -> v-1-r-m-otype-4-2 (144)
+```
+
+**What caps it now**, from that run's refusals: `conditional 1747` (form fields,
+by design - see item 8), `dangerous 678`, **`locator-not-unique 308`**,
+`unknown 129`, `same-shape-known-edge 121`, `repeat-limit 44`. It ended with an
+empty queue at 52 of 400 actions, so the budget is no longer the constraint.
+
+The 308 ambiguous locators are the next real gap and they are navigable controls,
+not junk: the `Germplasms` tab and the `Germplasms 10` summary card carry the same
+label, so `getByText` matches two elements and the crawler refuses both. A
+container-scoped locator - the design-system class plus the text - would recover
+most of them. See item 15.
+
+### Next real-application run
 
 Real access has happened twice: 2026-08-24 (login only, four bugs) and
 2026-08-27, which produced Phases 13 and 14. What is still missing is
@@ -991,6 +1028,11 @@ Exit 0, every artifact written, no secret leaked.
    into a Locator. Fine for generated internal helpers, but worth replacing with
    a structured switch over `locatorSpec.args`.
 11. **Jenkinsfile** — not written. The CLI + JUnit XML are ready for it.
+15. **Container-scoped locators for ambiguous labels** (Phase 17, the current
+   ceiling): 308 refusals in the last real crawl were `locator-not-unique`,
+   because a tab and a summary card share a label. `.dhxtabbar_tab_text` plus the
+   text is a stable handle - the framework's own class, not a generated id - and
+   the locator engine already has the tiers to hold it.
 13. **Expose the crawl budgets** (Phase 15A): the GUI sets only `max_actions`,
    so its runs are silently capped at 300 s (~66 actions), and neither the GUI
    nor the CLI can change `per_state_actions` - which is what makes a budget
