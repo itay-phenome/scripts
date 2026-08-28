@@ -13,6 +13,11 @@
  .selectedTreeRow{cursor:pointer;font-weight:600;background:#eef5ff}
  .lonely{cursor:pointer;display:inline-block;padding:4px 8px;border:1px solid #ccc}
  .pair{cursor:pointer;display:inline-block;padding:4px 8px;margin-right:6px}
+ /* A dhtmlx data grid: divs with a pointer cursor, exactly like the tree rows,
+    but carrying record values instead of a control name. */
+ .gridRow{display:flex;gap:10px}
+ .gridCell{cursor:pointer;padding:2px 6px;border:1px solid #eee}
+ .wrapCell{cursor:pointer;padding:2px 6px;display:inline-block}
  #panel{margin-top:12px;padding:8px;border:1px solid #ddd;max-width:520px}
 </style>
 
@@ -54,6 +59,69 @@
 
 <h2>4. Exactly two of a shape (still not a list)</h2>
 <div><span class="pair">First thing</span><span class="pair">Second thing</span></div>
+
+<!--
+  Sections 5 to 8 are the 2026-08-28 findings from the first real crawl. The
+  pointer-leaf rule that rescued the tree above also collected every cell of
+  every data grid, so `ui-map.json` filled with records - "parchita pumkin -
+  gimel g_1001.3 - observation - 2025-09-21", "1,241" - with locators built from
+  the data, and the crawler spent its whole budget clicking rows. The cells below
+  have the SAME pointer shape as the tree: only their content and their position
+  in a row distinguish them.
+-->
+<h2>5. A data grid, same pointer shape (must NOT be harvested)</h2>
+<div id="grid">
+  <div class="gridRow">
+    <div class="gridCell">parchita pumkin - gimel g_1001.3 - observation - 2025-09-21</div>
+    <div class="gridCell">1,241</div>
+    <div class="gridCell">2025-09-21</div>
+    <div class="gridCell">Approved</div>
+  </div>
+  <div class="gridRow">
+    <div class="gridCell">itay-test - - list - 2023-10-22</div>
+    <div class="gridCell">5,547</div>
+    <div class="gridCell">2023-10-22</div>
+    <div class="gridCell">Draft</div>
+  </div>
+  <div class="gridRow">
+    <div class="gridCell">parchita pumkin - sanity-02.1 - observation - 2025-09-21</div>
+    <div class="gridCell">93</div>
+    <div class="gridCell">2025-09-21</div>
+    <div class="gridCell">Approved</div>
+  </div>
+</div>
+
+<h2>6. A value wrapped one level deeper (must NOT be harvested)</h2>
+<div id="wrapped">
+  <div class="wrapCell"><span>8,120</span></div>
+  <div class="wrapCell"><span>9,004</span></div>
+  <div class="wrapCell"><span>7,441</span></div>
+</div>
+
+<h2>7. Anonymous header-free layout tables (must NOT be recorded)</h2>
+<table><tbody><tr><td>left panel</td></tr></tbody></table>
+<table><tbody><tr><td>right panel</td></tr></tbody></table>
+
+<h2>9. A flat list of navigation rows, no table wrapper (must survive)</h2>
+<!--
+  The tree above survives partly because each row sits alone inside its own
+  <td>. This list does not: the rows are siblings of each other, which is what a
+  "too many labelled siblings" rule would have vetoed - killing exactly the
+  navigation the pointer-leaf rule exists to find. Their labels are names, so
+  they must stay clickable.
+-->
+<div id="flatnav">
+  <div class="gridCell">Germplasms</div>
+  <div class="gridCell">Trials</div>
+  <div class="gridCell">Inventory</div>
+  <div class="gridCell">Observations</div>
+</div>
+
+<h2>8. A real data grid with headers (must survive)</h2>
+<table id="headed">
+  <thead><tr><th>Trial</th><th>Plots</th></tr></thead>
+  <tbody><tr><td>Trial A</td><td>12</td></tr></tbody>
+</table>
 
 <div id="panel">Nothing selected.</div>
 

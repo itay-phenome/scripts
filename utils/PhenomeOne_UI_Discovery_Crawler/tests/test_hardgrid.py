@@ -111,21 +111,31 @@ def main() -> int:
             print(f"    {in_dom} tables in the DOM, {len(tables)} recorded: names={named}")
             check("far fewer tables are recorded than exist in the DOM",
                   in_dom >= 6 and len(tables) < in_dom, f"{len(tables)} of {in_dom}")
-            check("the outermost table is still recorded (the data grid is never lost)",
-                  any(el.get("attrs", {}).get("id") == "lt-outer" for el, _l in tables),
+            # The boundary moved on 2026-08-28, on evidence from the first real
+            # crawl. Dropping only DOMINATED tables was not enough: PhenomeOne
+            # lays each widget out as its own TOP-LEVEL table, so 231 of the 272
+            # elements recorded for the landing state were anonymous tables whose
+            # only identity was a position (`table:table:#219`) - which shifts
+            # between visits, so each revisit minted 12 more and the map reached
+            # 8.2 MB for 7 states. Column headers now decide, not nesting.
+            check("an anonymous header-free table is dropped even at the top level",
+                  not any(el.get("attrs", {}).get("id") == "lt-outer" for el, _l in tables),
+                  str([el.get("attrs", {}).get("id") for el, _l in tables]))
+            check("an anonymous table WITH column headers is kept (a data grid is never lost)",
+                  any(el.get("attrs", {}).get("id") == "hg-datatable" for el, _l in tables),
                   str([el.get("attrs", {}).get("id") for el, _l in tables]))
             check("a nested table with an accessible name survives",
                   "Trait summary" in named, str(named))
             check("a nested table with a test id survives",
                   "lt-tagged" in testids, str(testids))
-            # Anonymous = no accessible name AND no test id. The outermost table
-            # is allowed to be anonymous; a nested one is not.
-            anonymous_nested = [el.get("attrs", {}) for el, _l in tables
-                                if not (el.get("name") or "").strip()
-                                and not el.get("attrs", {}).get("data-testid")
-                                and el.get("attrs", {}).get("id") != "lt-outer"]
-            check("no anonymous nested table is recorded", not anonymous_nested,
-                  str(anonymous_nested))
+            # Anonymous = no accessible name AND no test id. Such a table is kept
+            # only when it declares columns, wherever it sits.
+            anonymous_headerless = [el.get("attrs", {}) for el, _l in tables
+                                    if not (el.get("name") or "").strip()
+                                    and not el.get("attrs", {}).get("data-testid")
+                                    and not ((el.get("grid") or {}).get("columns"))]
+            check("no anonymous header-free table is recorded, nested or not",
+                  not anonymous_headerless, str(anonymous_headerless))
             check("structural nth() table locators are gone",
                   not [loc for _el, loc in tables if ".nth(" in (loc.js or "")],
                   str([loc.js for _el, loc in tables]))

@@ -94,6 +94,20 @@
   </td></tr>
 </table>
 
+<!--
+  A real data grid built out of a <table>, with no accessible name and no test
+  id: exactly as anonymous as the layout tables above, and it must still be
+  recorded. Column headers are what tells the two apart - "an unnamed table" is
+  not enough information to drop something a test may need to target.
+-->
+<table id="hg-datatable">
+  <thead><tr><th>Trait</th><th>Scale</th><th>Owner</th></tr></thead>
+  <tbody>
+    <tr><td>Fruit colour</td><td>ordinal</td><td>breeding</td></tr>
+    <tr><td>Plant vigour</td><td>ordinal</td><td>agronomy</td></tr>
+  </tbody>
+</table>
+
 <div id="hg-backdrop" class="backdrop hidden"></div>
 <div id="hg-dialog" class="modal hidden" role="dialog" aria-modal="true"
      aria-labelledby="hg-dialog-title">

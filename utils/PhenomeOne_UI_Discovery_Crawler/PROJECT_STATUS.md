@@ -5,11 +5,11 @@
 | | |
 |---|---|
 | Last updated | 2026-08-28 |
-| Version | 1.6.0 (discovery + outcome-driven multi-surface crawl + functional QA engine + **session-first connect** + **semantics-free controls**) |
+| Version | 1.7.0 (discovery + outcome-driven multi-surface crawl + functional QA engine + session-first connect + semantics-free controls + **data-vs-control separation**) |
 | Source | `scripts/utils/PhenomeOne_UI_Discovery_Crawler/` on `main` of `github.com/itay-phenome/scripts` (pushed) |
-| Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (553 MB, git-ignored) - **rebuilt from 1.6.0 and verified 2026-08-28** (`test_packaged.py` 30/30 on the relocated folder). See §5 |
+| Build output | `dist\PhenomeOne-UI-Discovery\` in this repo (553 MB, git-ignored) - **1.7.0, verified 2026-08-28** (`test_packaged.py` 30/30 on the relocated folder) and used for the crawls in Phase 15. See §5 |
 | Executables | `PhenomeOne-UI-Discovery.exe` (GUI), `PhenomeOne-UI-Discovery-cli.exe` (CI) |
-| Tests | **637/637 source passing** — 14 suites, one clean run measured 2026-08-28 on 1.6.0, no flaky suite. `test_packaged.py` (30) not re-run in this pass - it needs a build, and `dist/` is stale |
+| Tests | **669/669 source passing** — 14 suites, one clean run measured 2026-08-28 on 1.7.0, no flaky suite. Plus `test_packaged.py` 30/30 on the 1.7.0 build |
 | Blocked on | **Nothing local.** The intended workflow - a human signs in once, then the tool runs itself - is implemented, test-proven, and now the primary GUI path (CONNECT + "then Safe Crawl"). What is missing is one **completed Safe Crawl on the real application, with its artifacts kept**. See §4 |
 | Real access so far | 2026-08-24 against `eksdemo-helm.phenome-networks.com` - login only, exposed 4 bugs (Phase 7). 2026-08-27 - connect + scan, produced Phases 13 and 14. **No `crawl-summary.json` or real `ui-map.json` exists on disk**: those findings survive as code comments only |
 
@@ -584,12 +584,126 @@ run — a destructive verb in the label, form participation, a POST, cross-origi
 hidden, disabled — so this only decides the leftover case of a labelled row among
 peers.
 
+**Corrected by Phase 15B**: this rule also collected every data-grid cell, so
+record names and counts entered the map. Read the two together.
+
 New mock page `tests/mock_app/tree.html` reproduces the real dhtmlxTree DOM, and
 `test_safety.py` gained 11 checks (105 → 116): every row is discovered, counted,
 SAFE_NAVIGATION and auto-clickable with a **unique** text locator; a lone pointer
 node stays UNKNOWN; exactly two of a shape is still not a list; a destructive
 label stays DANGEROUS however list-shaped; no auto-clickable row carries a
 blocking flag.
+
+### Phase 15 — What the first real crawls taught (2026-08-28, v1.7.0)
+
+Two crawls of the real application: 20 actions from the GUI, then 400 actions /
+900 s from the CLI reusing the stored session. The first exposed a budget trap,
+the second produced an 8.2 MB map of mostly junk. Both are fixed here. Every
+number is measured, not predicted.
+
+**A. A crawl budget below `per_state_actions` can never leave the first state.**
+The landing screen offers 30 candidates (`per_state_actions`, the default), and
+the crawler finishes a state's candidate list before dequeuing the next. With
+`--crawl-max-actions 20` it clicked 20 research-group rows and stopped:
+`statesVisited: 1`, `limitHit: max_actions`. Nothing was wrong with the crawler -
+the budget guaranteed one layer. Raised to 400 actions / 900 s it explored 3
+states, found 2 new ones, opened 1 child surface and averaged 11 s per action.
+
+*Operational consequence, not a code change:* a first crawl needs
+`max_actions > per_state_actions`, and the GUI still fixes the time budget at
+300 s, so a GUI run cannot exceed ~66 actions. §4 item 13 tracks exposing both.
+
+**B. Phase 14 was harvesting the data, not just the tree.** The pointer-leaf rule
+that rescued the research-group tree also collected every cell of every data
+grid, because a data row is *exactly* what corroboration looks for: many
+controls of identical shape, each with its own label. The map filled with
+records:
+
+```
+clickable::parchita pumkin - gimel g_1001.3 - observation - 2025-09-21
+clickable::itay-test - - list - 2023-10-22
+clickable::1,241        locator: getByText('1,241', { exact: true })
+clickable::5,547
+```
+
+Three separate harms: business data in the UI map (safety invariant 6), locators
+built from data that break when the data changes, and a crawl budget spent
+clicking rows. `isPointerLeaf` now refuses a node whose label **is** a value - a
+bare number, a measurement, a date - and a node whose siblings are mostly values,
+which catches the word-labelled column ("Approved", "Draft") that the label test
+alone cannot see. `safety._looks_like_a_value` is the same rule where it can be
+unit-tested without a browser, and it also covers a record read back from a
+stored map; it reports a new `value-label` verdict.
+
+*The first version of the sibling rule was wrong and the mock caught it.*
+Counting *labelled* siblings vetoed `Mystery control` - an element whose parent
+is `<body>`, so its siblings are the whole page - and it would have killed any
+flat list of navigation divs, which is the very thing Phase 14 exists to find. A
+list of rows has just as many labelled siblings as a row of columns; what differs
+is what the text **is**. `tests/mock_app/tree.html` §9 is now a flat sibling list
+of names with no table wrapper, asserting navigation survives.
+
+*Accepted cost, stated plainly:* a navigation row named `5.6.1` or `1533` is now
+left UNKNOWN and never clicked. The real application has a research group named
+`5.6.1`. This is the fail-closed direction and the log names the rule.
+
+**C. 231 of 272 elements in one state were anonymous tables, and the map grew on
+every visit.** `isLayoutTable` only dropped a table nested *inside* another
+table, but this UI lays each widget out as its own **top-level** table. Those
+tables have no name, so their identity fell back to a position -
+`table:table:#219` - which shifts between visits: 44 elements became 272 over 19
+visits of the same screen, and the deep crawl reached ~1000 elements per state,
+8.2 MB, with one scan spending **33 s** in locator validation.
+
+The rule is now "anonymous **and** header-free", wherever the table sits. Column
+headers separate a data grid from a layout box, and skipping a table never skips
+its contents - every control inside is still harvested on its own merits.
+
+This moved a Phase 12C assertion, deliberately. `test_hardgrid.py` required the
+outermost layout table to be recorded, labelled "the data grid is never lost" -
+but the element it pinned is a single cell wrapping nested tables, not a grid.
+The intent is now held by a stronger test: `hardgrid.html` gained an anonymous
+`<table>` **with** `<th>` columns, and both suites assert it survives while the
+header-free wrappers do not. 7 tables in the DOM, 3 recorded (named, test-id'd,
+and the headed grid).
+
+**D. One screen had two identities.** `p=8.393426.541306&oid=541306~24`
+normalised to `:id`, but the research group at `p=8&oid=8` kept its digits,
+because the value rule reads 1-3 digits as an enum and 4+ as an id. So 19
+research groups collapsed to `v-1-r-m-otype-5` while one minted its own state,
+decided by how many digits its record id happened to have. `p` and `oid` are
+identifiers by **name** now, not by value length - but only when the value
+contains a digit, so `oid=m` ("Mine") stays the structural position it is.
+`otype` is untouched: `otype=4` (Program) and `otype=23` (Study) are different
+screens and must stay different states.
+
+**E. Measured on the real application**, same budget before and after
+(400 actions / 900 s, CLI, stored session):
+
+| | before | after |
+|---|---|---|
+| elements in the landing state | 1005, growing +12 per visit | **40, unchanged over 31 visits** |
+| `ui-map.json` | 8.2 MB, 7 states | **0.18 MB** |
+| UNKNOWN skips | 10 291 | **31** |
+| worst single validation | 33 s | **1.6 s** |
+| seconds per action | 11.2 | **3.4** |
+| record names or dates in the map | many | **0** |
+| layout-table records | 231 in one state | **0** |
+
+**The remaining limit is candidate selection, not budget.** All 60 clicks of the
+post-fix run - 30 from the landing screen, 30 from the research-group screen -
+were research-group tree rows, and every one landed on `v-1-r-m-otype-5`. The
+tree is global chrome, so every state offers the same 30 rows, and
+`per_state_actions` is spent on them before a tab, sidebar item or hamburger
+module is ever clicked; the crawl then ended with its queue empty and no limit
+hit. Now that identity is correct those 30 rows are **one edge clicked 30 times**.
+
+Phase 8 poisons an *inert* element and limits repeats of the *same* element
+across states, but these are 30 distinct elements that do change state - to a
+state already known. That case has no rule yet. The fix is an equivalence class
+on actions: once two or three controls sharing a `leafSig` have led from this
+state to the same target, treat the remaining siblings as the same edge. See §4
+item 14.
 
 ---
 
@@ -609,13 +723,13 @@ is older than the 1.6.0 source (see §5).
 | Suite | Checks | Covers |
 |---|---|---|
 | `test_units.py` | 123 | fingerprints incl. **dialog-title normalisation (40)**, locators, store merge, redaction, login analysis, nav tree, report |
-| `test_safety.py` | 116 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary and the **semantics-free dhtmlxTree rows (11)** |
+| `test_safety.py` | 142 | classifier: unit + live on the hardened mock, incl. the real PhenomeOne vocabulary and the **semantics-free dhtmlxTree rows (11)** |
 | `test_crawler.py` | 22 | autonomous crawl, budgets, idempotence, **zero side effects** |
 | `test_surfaces.py` | 45 | surface scope + the outcome decision table (no browser) |
 | `test_multisurface.py` | 35 | **autonomous crawling across tabs/windows**: menu with no fingerprint change, same-origin tab and popup explored, off-origin closed, parent crawl survives |
 | `test_pipeline.py` | 50 | workflows, UI diff, codegen, JUnit, CI exit codes |
 | `test_recovery.py` | 32 | the live-environment failures above, incl. the **Manual Login double-press race** and the **CONNECT/stored-session flow (9)** |
-| `test_hardgrid.py` | 31 | component-framework UI: portaled combobox, virtualised grid, volatile dialog titles |
+| `test_hardgrid.py` | 32 | component-framework UI: portaled combobox, virtualised grid, volatile dialog titles |
 | `test_functional.py` | 48 | the functional milestone: full CRUD lifecycle, both fail-closed guards, evidence, cleanup-after-failure, Safe Crawl untouched |
 | `test_redteam.py` | 37 | adversarial surface: URL commands, popups, JS downloads, nested iframes, loops, ambiguity, unlabelled controls |
 | `test_artifacts.py` | 34 | exact artifact set, schema keys, **generated Python executed against the mock**, leak scan |
@@ -623,7 +737,7 @@ is older than the 1.6.0 source (see §5).
 | `test_login_variants.py` | 13 | slow form, iframe IdP form, landing page, no form, **late-rendering username field** (appears / never appears) |
 | `test_gui_smoke.py` | 21 | real Tk window driving the real browser |
 | `test_packaged.py` | 30 | relocated frozen build in a stripped environment |
-| **Total** | **667** | 637 source (measured 2026-08-28, all green) + 30 packaged (run at build time only - see §5) |
+| **Total** | **699** | 669 source (measured 2026-08-28 on 1.7.0, all green, no flaky suite) + 30 packaged (30/30 on the 1.7.0 build) |
 
 `test_packaged.py` takes a path: `python tests/test_packaged.py <dist>/PhenomeOne-UI-Discovery`.
 It **moves** the folder (relocation test), so pass the current location.
@@ -695,6 +809,17 @@ Exit 0, every artifact written, no secret leaked.
    into a Locator. Fine for generated internal helpers, but worth replacing with
    a structured switch over `locatorSpec.args`.
 11. **Jenkinsfile** — not written. The CLI + JUnit XML are ready for it.
+14. **Action equivalence classes** (Phase 15E, the current ceiling on depth): a
+   state offering 30 controls of the same shape that all lead to the same target
+   spends its whole budget proving the same edge 30 times. Once 2-3 members of a
+   `leafSig` from this state land on the same known state, skip the rest. That
+   frees ~27 of 30 candidates per state for the tabs and menus that open new
+   screens - which is what "crawl inside a research group" needs.
+13. **Expose the crawl budgets** (Phase 15A): the GUI sets only `max_actions`,
+   so its runs are silently capped at 300 s (~66 actions), and neither the GUI
+   nor the CLI can change `per_state_actions` - which is what makes a budget
+   below 30 unable to leave the landing screen. Both belong in the GUI next to
+   max actions, and `--crawl-per-state` in the CLI.
 12. **`--connect` for the CLI**: `op_connect()` (Phase 13A) is wired to the GUI
    button only. The CLI, which is the CI path, still has `--manual-login` and
    form login. A `--connect` flag reusing the stored session would let Jenkins
@@ -819,6 +944,12 @@ training-summary, crawl-summary, workflows, ui-diff, generated/), `reports/`
 10. Authentication never guesses: `session_is_valid()` requires no visible
    password field **and** the application rendering. A visible password field
    always means not authenticated. (Phase 13A.)
+11. **A value is not a control.** A semantics-free node whose label is a number,
+   a measurement or a date - or whose siblings are mostly such values - is never
+   harvested and never clicked. This is what keeps business data out of the map
+   and stops locators being built from data (`getByText('1,241')`). Enforced
+   twice: `isValueLabel` in the harvester, `_looks_like_a_value` in the
+   classifier. (Phase 15B.)
 
 `test_crawler.py` asserts (1)–(4) against a mock that records every side effect
 it would have suffered. Keep that test green.

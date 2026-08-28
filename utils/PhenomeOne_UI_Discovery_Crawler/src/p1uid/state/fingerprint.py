@@ -126,12 +126,32 @@ _PARAM_ID_PATTERNS = [
 ]
 
 
+# Parameters whose value is an identifier whatever it looks like.
+#
+# The length rule above cannot decide these. Measured on real PhenomeOne
+# (2026-08-28): the research group at `p=8.393426.541306&oid=541306~24`
+# normalised to one state, but the group at `p=8&oid=8` kept its digits - 1 to 3
+# digits reads as an enum - so the SAME screen had two identities, decided by how
+# many digits the record id happened to have. The crawl then treated one research
+# group as unexplored and the other 19 as already seen.
+#
+# `otype` really is an enum and must keep its value: `otype=4` (Program) and
+# `otype=23` (Study) are different screens. So the rule is by parameter NAME,
+# never by value length.
+_ID_PARAM_RE = re.compile(r"^(p|o?id|pid|rid|gid|sid|uid|eid|recid|objid|parent)$", re.I)
+
+
 def _normalise_param_value(key: str, value: str) -> str:
     """One `key=value` pair from a query string or hash fragment."""
     if not value:
         return value
     if _NAME_PARAM_RE.search(key):
         return ":name"                      # a record name: never structural
+    if _ID_PARAM_RE.match(key.strip()) and any(ch.isdigit() for ch in value):
+        # A digit is what makes it an identifier. A purely alphabetic value under
+        # the same key is a named position and stays: PhenomeOne's landing state
+        # is `oid=m` ("Mine"), which is structure, not a record.
+        return ":id"
     for pat, token in _PARAM_ID_PATTERNS:
         if pat.match(value):
             return token

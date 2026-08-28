@@ -451,8 +451,76 @@ def semantics_free_tree() -> None:
                   not [n for n, (_e, _l, v) in rows.items()
                        if v.auto_clickable and set(v.flags) & safety.BLOCKING_FLAGS],
                   str([n for n, (_e, _l, v) in rows.items() if v.auto_clickable]))
+
+            # --- a data grid has the same shape and must NOT be collected ---
+            #
+            # The first real crawl (2026-08-28) put record names, counts and
+            # dates into the map with locators built from the data. These cells
+            # are pointer leaves exactly like the tree rows above: what separates
+            # them is a value for a label, or three labelled cells in one row.
+            names = {(el.get("name") or "").strip() for _f, el, _l in res.rows}
+            leaked = sorted(n for n in names if n and (
+                "parchita" in n.lower() or "itay-test" in n.lower()
+                or n in ("1,241", "5,547", "93", "8,120", "9,004", "7,441")
+                or n in ("2025-09-21", "2023-10-22")))
+            check("no grid value reached the map (no business data)", not leaked, str(leaked))
+            check("a word-labelled cell in a row of values is refused too",
+                  "Approved" not in names and "Draft" not in names,
+                  str(sorted(n for n in names if n in ("Approved", "Draft"))))
+            check("the tree survived the same rules",
+                  all(n in rows for n in tree), f"found {[n for n in tree if n in rows]}")
+
+            # A flat list of navigation rows - siblings of each other, with no
+            # table wrapper - is what a "too many labelled siblings" rule would
+            # have vetoed, taking the navigation with it. Names, not values.
+            flat = ["Germplasms", "Trials", "Inventory", "Observations"]
+            check("a flat sibling list of names stays navigable",
+                  all(n in rows and rows[n][2].classification == SAFE_NAVIGATION
+                      and rows[n][2].auto_clickable for n in flat),
+                  str([(n, rows[n][2].classification if n in rows else "MISSING")
+                       for n in flat]))
+
+            # --- anonymous header-free tables are layout, not structure ------
+            tables = [el for _f, el, _l in res.rows if el.get("type") == "table"]
+            headed = [t for t in tables if "Trial" in ((t.get("grid") or {}).get("columns") or [])]
+            check("the header-free layout tables were skipped", len(tables) == len(headed),
+                  f"{len(tables)} table(s) recorded, {len(headed)} with headers")
+            check("the real grid with headers survived", len(headed) == 1,
+                  str([(t.get("grid") or {}).get("columns") for t in tables]))
         finally:
             engine.shutdown_blocking()
+
+
+def value_labels() -> None:
+    """A value is not a control name - the unit half of the same rule.
+
+    `isValueLabel` in the injected core refuses to harvest these nodes at all;
+    this is the classifier's own copy, which also covers a record read back from
+    a stored map, and it is where the rule can be tested without a browser.
+    """
+    from p1uid.crawler.safety import _looks_like_a_value
+
+    print("\n" + "=" * 62 + "\nUNIT: value labels are not control names\n" + "=" * 62)
+    for label in ("1,241", "5,547", "93", "8", "2025-09-21", "21/09/2025", "5.6.1",
+                  "12:30", "  ", "1.241,00"):
+        check(f"value: {label!r}", _looks_like_a_value(label))
+    for label in ("Tomato", "Eggplant", "Pepper-ID1533", "Delete Sorghum", "Overview",
+                  "Trial A", "Approved", "g_1001.3 pepper"):
+        check(f"control name: {label!r}", not _looks_like_a_value(label))
+
+    # And the classifier refuses to promote one however list-shaped it is.
+    row = {"type": "clickable", "name": "1,241", "leafSiblings": 12, "visible": True,
+           "enabled": True}
+    v = classify(row)
+    check("a list-shaped value is UNKNOWN, not navigation",
+          v.classification == UNKNOWN and not v.auto_clickable and v.matched == "value-label",
+          f"{v.classification} matched={v.matched}")
+    named = {"type": "clickable", "name": "Tomato", "leafSiblings": 12, "visible": True,
+             "enabled": True}
+    v2 = classify(named)
+    check("a list-shaped NAME is still navigation",
+          v2.classification == SAFE_NAVIGATION and v2.auto_clickable and v2.matched == "list-shape",
+          f"{v2.classification} matched={v2.matched}")
 
 
 def integration() -> None:
@@ -628,7 +696,8 @@ def integration() -> None:
 def main() -> int:
     for fn in (test_required_dangerous_verbs, test_structure_beats_labels, test_urls,
                test_unknown_actions, test_safe_navigation, test_conditional,
-               test_state_and_context, test_invariants, test_no_networkidle):
+               test_state_and_context, test_invariants, test_no_networkidle,
+               value_labels):
         fn()
     if "--unit" not in sys.argv:
         semantics_free_tree()

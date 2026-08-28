@@ -65,6 +65,57 @@ function isVisible(el) {
 const LAYOUT_ROLES = new Set(['cell','gridcell','listitem','row','columnheader',
   'rowheader','generic','presentation','none','']);
 
+// How many value-labelled siblings make the neighbourhood a data row.
+const VALUE_PEER_MIN = 2;
+
+// A label that carries a value instead of naming a control.
+//
+// Measured on real PhenomeOne (2026-08-28): the pointer-leaf rule below rescued
+// the research-group tree and swallowed every data grid with it. `ui-map.json`
+// filled up with records - "parchita pumkin - gimel g_1001.3 - observation -
+// 2025-09-21", "itay-test - - list - 2023-10-22", "1,241", "5,547" - each with a
+// locator built from the data itself (`getByText('1,241', { exact: true })`),
+// which breaks the moment the data does. Business data in the map also breaks
+// safety invariant 6, and clicking those rows spent a whole crawl budget.
+//
+// A control's name identifies the control; a number or a date identifies a
+// record. Accepted cost: a navigation row named "5.6.1" or "1533" is left
+// UNKNOWN and never clicked - the fail-closed direction, and one the operator
+// can see in the log.
+const VALUE_ONLY_RE = /^[0-9.,:%+\/\s-]+$/;
+const DATE_IN_TEXT_RE = /[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4}/;
+function isValueLabel(text) {
+  const t = norm(text);
+  if (!t) return true;
+  return VALUE_ONLY_RE.test(t) || DATE_IN_TEXT_RE.test(t);
+}
+
+function labelOf(el) {
+  return directText(el)
+    || (el.children.length === 1 ? directText(el.firstElementChild) : '');
+}
+
+// A cell surrounded by values is itself a value. This catches the word-labelled
+// column - "Approved", "Draft" - that the label test alone cannot see.
+//
+// Counting labelled siblings instead would be wrong, and the mock proved it: a
+// list of navigable rows ALSO has many labelled siblings, and an element sitting
+// directly in <body> has the whole page for siblings. What separates a data row
+// from a list of rows is not how many neighbours carry text, it is what that
+// text IS - a row of a grid is mostly numbers and dates, a list is mostly names.
+function amongValues(el) {
+  const parent = el.parentElement;
+  if (!parent) return false;
+  let values = 0;
+  for (const sib of parent.children) {
+    if (sib === el) continue;
+    const label = labelOf(sib);
+    if (label && isValueLabel(label)) values++;
+    if (values >= VALUE_PEER_MIN) return true;
+  }
+  return false;
+}
+
 // A control with no semantics at all.
 //
 // Measured on real PhenomeOne (2026-08-27): the entire research-group tree -
@@ -82,8 +133,10 @@ function isPointerLeaf(el) {
   if (tag !== 'DIV' && tag !== 'SPAN' && tag !== 'TD' && tag !== 'LI'
       && tag !== 'P' && tag !== 'I' && tag !== 'A' && tag !== 'B') return false;
   if (el.children.length > 1) return false;             // a wrapper, not a leaf
-  if (!directText(el) && !(el.children.length === 1 && directText(el.firstElementChild)))
-    return false;                                       // unlabelled: nothing to target
+  const label = labelOf(el);
+  if (!label) return false;                             // unlabelled: nothing to target
+  if (isValueLabel(label)) return false;                // a value, not a control
+  if (amongValues(el)) return false;                    // a column in a data row
   try {
     if (el.querySelector('a[href],button,input,select,textarea,[role]')) return false;
     if (win(el).getComputedStyle(el).cursor !== 'pointer') return false;
@@ -486,7 +539,24 @@ function isLayoutTable(el) {
   for (const a of TESTID_ATTRS) { if (el.getAttribute(a)) return false; }
   try { if (el.querySelector(':scope > caption')) return false; } catch (e) { }
   const parent = el.parentElement;
-  return !!(parent && parent.closest('table,[role="grid"],[role="treegrid"],[role="table"]'));
+  if (parent && parent.closest('table,[role="grid"],[role="treegrid"],[role="table"]')) {
+    return true;                            // dominated by another table
+  }
+  // Not nested, but still anonymous AND header-free.
+  //
+  // Measured on real PhenomeOne (2026-08-28): the dominance rule above only
+  // catches a table INSIDE another table, and this UI lays out each widget as
+  // its own top-level table - so 231 of the 272 elements recorded for the
+  // landing state were anonymous tables. Their only identity was a position
+  // (`table:table:#219`), which shifts between visits, so every revisit minted
+  // 12 more of them: 44 elements grew to 272 over 19 visits, and the map
+  // reached 8.2 MB for 7 states with validation taking 33 s on one scan.
+  //
+  // Column headers are what separates a data grid from a layout box, and a
+  // table WITH headers is still recorded wherever it sits. Skipping the table
+  // element does not skip its contents: every control inside is harvested on
+  // its own merits.
+  try { return !el.querySelector('th,[role="columnheader"]'); } catch (e) { return false; }
 }
 
 // ------------------------------------------------------------ harvest

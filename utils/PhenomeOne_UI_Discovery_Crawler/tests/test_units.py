@@ -167,6 +167,27 @@ def test_spa_hash_route_normalisation() -> None:
           and "8.393426" not in normalise_route("/", TRIAL_LIST))
     check("a tilde-suffixed id is normalised", "541306" not in normalise_route("/", TRIAL_LIST))
 
+    # --- one screen must not have two identities ---------------------------
+    #
+    # Measured on real PhenomeOne (2026-08-28): 19 research groups collapsed to
+    # `v-1-r-m-otype-5` while the one at `p=8&oid=8` minted its own state,
+    # because 1 to 3 digits reads as an enum and 4+ as an id. The crawler then
+    # believed it had a research group left to explore and 19 already seen. `p`
+    # and `oid` are identifiers by NAME; `otype` is the enum and must survive.
+    RG_SHORT = "#v=1&r=m&p=8&oid=8&otype=5&oname=Tomato"
+    RG_LONG = "#v=1&r=m&p=8.393426.541306&oid=541306~24&otype=5&oname=List"
+    check("a 1-digit record id normalises like a 6-digit one",
+          normalise_route("/", RG_SHORT) == normalise_route("/", RG_LONG),
+          f"{normalise_route('/', RG_SHORT)} vs {normalise_route('/', RG_LONG)}")
+    check("so the same screen is ONE state", fp(RG_SHORT).digest == fp(RG_LONG).digest,
+          f"{fp(RG_SHORT).slug} vs {fp(RG_LONG).slug}")
+    check("otype still separates the screens", fp(RG_SHORT).digest != fp(STUDY).digest)
+    check("an alphabetic position is not an id (oid=m is Mine)",
+          "oid=m" in normalise_route("/", HOME), normalise_route("/", HOME))
+    check("a page number is still not an id",
+          normalise_route("/app", "#page=3") == "/app/#page=3",
+          normalise_route("/app", "#page=3"))
+
     # --- fragmentation: two records, same screen -> ONE state ---------------
     check("two Programs collapse to one state", fp(PROG_A).digest == fp(PROG_B).digest,
           f"{fp(PROG_A).digest} vs {fp(PROG_B).digest}")

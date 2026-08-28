@@ -196,6 +196,21 @@ _OPAQUE_TYPES = frozenset({"clickable", "focusable", "testid-element", ""})
 # UNKNOWN than guessed at.
 _LIST_SHAPE_MIN = 3
 
+# A label that identifies a RECORD rather than a control: a bare number, a
+# measurement, a date. Kept identical to `isValueLabel` in injected.py - the
+# harvester refuses to collect such a node at all, and this is the same rule
+# where it can be unit-tested and where a record read back from a stored map
+# still meets it.
+_VALUE_ONLY_RE = re.compile(r"^[0-9.,:%+/\s-]+$")
+_DATE_IN_TEXT_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4}")
+
+
+def _looks_like_a_value(label: str) -> bool:
+    text = " ".join((label or "").split())
+    if not text:
+        return True
+    return bool(_VALUE_ONLY_RE.match(text) or _DATE_IN_TEXT_RE.search(text))
+
 # input[type=...] values that submit or reset a form when clicked.
 _SUBMIT_INPUTS = frozenset({"submit", "image"})
 _RESET_INPUTS = frozenset({"reset"})
@@ -444,6 +459,18 @@ def _classify(el: dict[str, Any], origin: str = "") -> Verdict:
         # This only decides the leftover case of a labelled row among peers.
         siblings = int(el.get("leafSiblings") or 0)
         if el_type == "clickable" and siblings >= _LIST_SHAPE_MIN and own_label:
+            # ... unless the label is a VALUE. A data grid is list-shaped by
+            # construction, so corroboration alone promoted its cells: the real
+            # run on 2026-08-28 clicked grid rows and stored record names and
+            # counts in the map. The harvester now refuses those nodes outright
+            # (`isValueLabel` in injected.py); this is the same rule where it can
+            # be unit-tested without a browser, and it also covers a record that
+            # reaches the classifier from a stored map.
+            if _looks_like_a_value(own_label):
+                return _verdict(UNKNOWN,
+                                reasons + [f"label {own_label!r} is a value, not a control name: "
+                                           f"a data row rather than navigation"],
+                                flags, "value-label")
             return _verdict(SAFE_NAVIGATION,
                             reasons + [f"one of {siblings} controls of the same shape: a list or "
                                        f"tree row, which navigates rather than acts"],
