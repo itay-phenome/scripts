@@ -1,0 +1,362 @@
+{
+  "reportDate": "2026-06-07",
+  "reportWeek": "W23 / 2026",
+  "reviewer": "Itay",
+  "generatedAt": "2026-06-07T06:13:42.146533+00:00",
+  "flags": {
+    "minSizeMb": 20,
+    "maxAgeDays": 10,
+    "awsProfile": "(default)"
+  },
+  "summary": {
+    "total": 38,
+    "ok": 28,
+    "missing": 0,
+    "suspect": 3,
+    "na": 7
+  },
+  "rows": [
+    {
+      "name": "Production",
+      "group": "Phenome Networks",
+      "status": "ok",
+      "size": "13.5 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phn-p2g.prod-rds-backup/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Sakata",
+      "group": "Sakata",
+      "status": "ok",
+      "size": "8.5 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-sakata-weekly-backup/rds-weekly-backups/2026-06-06/"
+    },
+    {
+      "name": "Sakata - Test",
+      "group": "Sakata",
+      "status": "ok",
+      "size": "7.4 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-sakatatest-weekly-backup/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Top Seeds",
+      "group": "Top Seeds",
+      "status": "ok",
+      "size": "1.8 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-topseeds-mysql-backup/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Kimberly Clark - EKS",
+      "group": "Kimberly Clark",
+      "status": "suspect",
+      "size": "835.8 KB",
+      "backupDate": "2026-06-06",
+      "notes": "Size 835.8 KB below threshold (20.0 MB)",
+      "path": "s3://phenome-kimberly-clark-mysql-backup/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "East West Seeds",
+      "group": "East West Seeds",
+      "status": "ok",
+      "size": "5.7 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://ews-mysql-weekly-backups/weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Danziger",
+      "group": "Danziger",
+      "status": "ok",
+      "size": "1.4 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-danziger-mysql-backup/weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Starke Ayres",
+      "group": "Starke Ayres",
+      "status": "ok",
+      "size": "952.1 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-starkeayres-mysql/weekly_backups/2026-06-06/"
+    },
+    {
+      "name": "Gautier",
+      "group": "Gautier",
+      "status": "ok",
+      "size": "640.1 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-gautier-rds-backup/weekly_backups/2026-06-06/"
+    },
+    {
+      "name": "Mahyco",
+      "group": "Mahyco",
+      "status": "ok",
+      "size": "1.9 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-mahyco-mysql-backup/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Planasa",
+      "group": "Planasa",
+      "status": "ok",
+      "size": "1022.3 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-planasnew-mysql-weekly/weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Farm Hannong",
+      "group": "Farm Hannong",
+      "status": "na",
+      "size": "",
+      "backupDate": "",
+      "notes": "Disabled",
+      "path": ""
+    },
+    {
+      "name": "Kaiima",
+      "group": "Kaiima",
+      "status": "ok",
+      "size": "538.4 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-kaiima-mysql-backup/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Kraftheinz",
+      "group": "Kraftheinz",
+      "status": "ok",
+      "size": "192.4 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-kraftheinz-mysql-weekly-backup/weekly_backups/2026-06-06/"
+    },
+    {
+      "name": "Pepsico",
+      "group": "Pepsico",
+      "status": "ok",
+      "size": "74.3 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-pepsico-mysql-backup/weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Origene",
+      "group": "Origene",
+      "status": "ok",
+      "size": "998.1 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-origene-mysql-backup/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "British American (BAT)",
+      "group": "BAT",
+      "status": "na",
+      "size": "",
+      "backupDate": "",
+      "notes": "Disabled",
+      "path": ""
+    },
+    {
+      "name": "East West Seeds Indonesia",
+      "group": "East West Seeds",
+      "status": "ok",
+      "size": "1.3 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://ews-indonesia-mysql-daily-backups/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Ramiro",
+      "group": "Ramiro",
+      "status": "ok",
+      "size": "1.0 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-ramiro-mysql-weekly/weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "McCain",
+      "group": "McCain",
+      "status": "ok",
+      "size": "752.0 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-mccain-mysql-weekly/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Seedworks",
+      "group": "Seedworks",
+      "status": "ok",
+      "size": "1.3 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-seedworks-mysql-backup/weekly_backups/2026-06-06/"
+    },
+    {
+      "name": "Ball",
+      "group": "Ball",
+      "status": "ok",
+      "size": "1.2 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-ball-mysql-backup/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Axia Seeds (VoloAgri)",
+      "group": "VoloAgri",
+      "status": "ok",
+      "size": "842.7 MB",
+      "backupDate": "2026-06-07",
+      "notes": "",
+      "path": "s3://phenome-onprem-mysql-backup/axia/2026-06-07/"
+    },
+    {
+      "name": "Gates Ag One",
+      "group": "Gates Ag One",
+      "status": "ok",
+      "size": "442.3 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-gatesagonetest-mysql-weekly-backup/weekly_backups/2026-06-06/"
+    },
+    {
+      "name": "Gates Ag One - TEST",
+      "group": "Gates Ag One",
+      "status": "ok",
+      "size": "655.8 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-gatesagone-weekly/weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Fito",
+      "group": "Fito",
+      "status": "ok",
+      "size": "2.7 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-fito-mysql-weekly/weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Solynta",
+      "group": "Solynta",
+      "status": "ok",
+      "size": "2.0 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-solynta-mysql-weekly/weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Solynta - TEST",
+      "group": "Solynta",
+      "status": "suspect",
+      "size": "20.0 B",
+      "backupDate": "2026-06-06",
+      "notes": "Size 20.0 B below threshold (20.0 MB)",
+      "path": "s3://phenome-testsolynta-rds-backup/weekly_backups/2026-06-06/"
+    },
+    {
+      "name": "Syngenta",
+      "group": "Syngenta",
+      "status": "ok",
+      "size": "1.1 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-syngenta-mysql-weekly/weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "S&A Produce UK",
+      "group": "S&A Produce",
+      "status": "ok",
+      "size": "52.3 MB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://phenome-saproduceuk-rds-backup/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "BASF - Production",
+      "group": "BASF",
+      "status": "na",
+      "size": "",
+      "backupDate": "",
+      "notes": "Disabled",
+      "path": ""
+    },
+    {
+      "name": "BASF - QA (QUAL)",
+      "group": "BASF",
+      "status": "na",
+      "size": "",
+      "backupDate": "",
+      "notes": "Disabled",
+      "path": ""
+    },
+    {
+      "name": "BASF - DEV",
+      "group": "BASF",
+      "status": "na",
+      "size": "",
+      "backupDate": "",
+      "notes": "Disabled",
+      "path": ""
+    },
+    {
+      "name": "BASF - Migration",
+      "group": "BASF",
+      "status": "na",
+      "size": "",
+      "backupDate": "",
+      "notes": "Disabled",
+      "path": ""
+    },
+    {
+      "name": "GDM Production",
+      "group": "GDM",
+      "status": "na",
+      "size": "",
+      "backupDate": "",
+      "notes": "Disabled",
+      "path": ""
+    },
+    {
+      "name": "Enza Test",
+      "group": "Enza Zaden",
+      "status": "ok",
+      "size": "10.0 GB",
+      "backupDate": "2026-06-06",
+      "notes": "",
+      "path": "s3://enza-test-database-backup/rds_weekly_backup/2026-06-06/"
+    },
+    {
+      "name": "Enza Accept",
+      "group": "Enza Zaden",
+      "status": "suspect",
+      "size": "7.3 GB",
+      "backupDate": "2026-05-10",
+      "notes": "Latest backup is 28 day(s) old (max allowed: 10)",
+      "path": "s3://enza-accept-database-backup/rds_weekly_backup/2026-05-10/"
+    },
+    {
+      "name": "Enza Production",
+      "group": "Enza Zaden",
+      "status": "ok",
+      "size": "10.2 GB",
+      "backupDate": "2026-06-07",
+      "notes": "",
+      "path": "s3://enza-prod-weekly-database-backup/weekly_backup/2026-06-07/"
+    }
+  ]
+}

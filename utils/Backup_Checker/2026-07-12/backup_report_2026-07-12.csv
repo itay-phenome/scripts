@@ -1,0 +1,39 @@
+﻿name,group,status,backupDate,size,notes,path
+Production,Phenome Networks,ok,2026-07-11,14.1 GB,,s3://phn-p2g.prod-rds-backup/rds_weekly_backup/2026-07-11/
+Sakata,Sakata,ok,2026-07-11,8.7 GB,,s3://phenome-sakata-weekly-backup/rds-weekly-backups/2026-07-11/
+Sakata - Test,Sakata,ok,2026-07-11,7.4 GB,,s3://phenome-sakatatest-weekly-backup/rds_weekly_backup/2026-07-11/
+Top Seeds,Top Seeds,ok,2026-07-11,1.8 GB,,s3://phenome-topseeds-mysql-backup/rds_weekly_backup/2026-07-11/
+Kimberly Clark - EKS,Kimberly Clark,suspect,2026-07-11,5.1 MB,Size 5.1 MB below threshold (20.0 MB),s3://phenome-kimberly-clark-mysql-backup/rds_weekly_backup/2026-07-11/
+East West Seeds,East West Seeds,ok,2026-07-11,2.0 GB,,s3://ews-mysql-weekly-backups/weekly_backup/2026-07-11/
+Danziger,Danziger,ok,2026-07-11,1.4 GB,,s3://phenome-danziger-mysql-backup/weekly_backup/2026-07-11/
+Starke Ayres,Starke Ayres,ok,2026-07-11,979.2 MB,,s3://phenome-starkeayres-mysql/weekly_backups/2026-07-11/
+Gautier,Gautier,ok,2026-07-11,755.4 MB,,s3://phenome-gautier-rds-backup/weekly_backups/2026-07-11/
+Mahyco,Mahyco,ok,2026-07-11,2.0 GB,,s3://phenome-mahyco-mysql-backup/rds_weekly_backup/2026-07-11/
+Planasa,Planasa,ok,2026-07-11,1.0 GB,,s3://phenome-planasnew-mysql-weekly/weekly_backup/2026-07-11/
+Farm Hannong,Farm Hannong,na,,,Disabled,
+Kaiima,Kaiima,ok,2026-07-11,546.1 MB,,s3://phenome-kaiima-mysql-backup/rds_weekly_backup/2026-07-11/
+Kraftheinz,Kraftheinz,ok,2026-07-11,193.1 MB,,s3://phenome-kraftheinz-mysql-weekly-backup/weekly_backups/2026-07-11/
+Pepsico,Pepsico,ok,2026-07-11,78.9 MB,,s3://phenome-pepsico-mysql-backup/weekly_backup/2026-07-11/
+Origene,Origene,ok,2026-07-11,1011.1 MB,,s3://phenome-origene-mysql-backup/rds_weekly_backup/2026-07-11/
+British American (BAT),BAT,na,,,Disabled,
+East West Seeds Indonesia,East West Seeds,ok,2026-07-11,1.3 GB,,s3://ews-indonesia-mysql-daily-backups/rds_weekly_backup/2026-07-11/
+Ramiro,Ramiro,ok,2026-07-11,1.0 GB,,s3://phenome-ramiro-mysql-weekly/weekly_backup/2026-07-11/
+McCain,McCain,ok,2026-07-11,759.8 MB,,s3://phenome-mccain-mysql-weekly/rds_weekly_backup/2026-07-11/
+Seedworks,Seedworks,ok,2026-07-11,1.3 GB,,s3://phenome-seedworks-mysql-backup/weekly_backups/2026-07-11/
+Ball,Ball,ok,2026-07-11,1.3 GB,,s3://phenome-ball-mysql-backup/rds_weekly_backup/2026-07-11/
+Axia Seeds (VoloAgri),VoloAgri,suspect,2026-06-12,849.9 MB,Latest backup is 30 day(s) old (max allowed: 10),s3://phenome-onprem-mysql-backup/axia/2026-06-12/
+Gates Ag One,Gates Ag One,ok,2026-07-11,448.0 MB,,s3://phenome-gatesagonetest-mysql-weekly-backup/weekly_backups/2026-07-11/
+Gates Ag One - TEST,Gates Ag One,ok,2026-07-11,665.4 MB,,s3://phenome-gatesagone-weekly/weekly_backup/2026-07-11/
+Fito,Fito,ok,2026-07-11,2.9 GB,,s3://phenome-fito-mysql-weekly/weekly_backup/2026-07-11/
+Solynta,Solynta,ok,2026-07-11,2.0 GB,,s3://phenome-solynta-mysql-weekly/weekly_backup/2026-07-11/
+Solynta - TEST,Solynta,suspect,2026-07-11,20.0 B,Size 20.0 B below threshold (20.0 MB),s3://phenome-testsolynta-rds-backup/weekly_backups/2026-07-11/
+Syngenta,Syngenta,ok,2026-07-11,1.1 GB,,s3://phenome-syngenta-mysql-weekly/weekly_backup/2026-07-11/
+S&A Produce UK,S&A Produce,ok,2026-07-11,63.9 MB,,s3://phenome-saproduceuk-rds-backup/rds_weekly_backup/2026-07-11/
+BASF - Production,BASF,na,,,Disabled,
+BASF - QA (QUAL),BASF,na,,,Disabled,
+BASF - DEV,BASF,na,,,Disabled,
+BASF - Migration,BASF,na,,,Disabled,
+GDM Production,GDM,na,,,Disabled,
+Enza Test,Enza Zaden,ok,2026-07-11,10.0 GB,,s3://enza-test-database-backup/rds_weekly_backup/2026-07-11/
+Enza Accept,Enza Zaden,ok,2026-07-11,10.0 GB,,s3://enza-accept-database-backup/rds_weekly_backup/2026-07-11/
+Enza Production,Enza Zaden,ok,2026-07-12,10.9 GB,,s3://enza-prod-weekly-database-backup/weekly_backup/2026-07-12/
