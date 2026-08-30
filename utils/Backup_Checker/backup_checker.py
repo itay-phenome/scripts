@@ -15,6 +15,27 @@ Usage:
     python backup_checker.py --dry-run          # validate config + credentials only
 """
 
+# ── stdio guard — must run before any other project import ────────────────────
+# PyInstaller's windowed mode (--noconsole / --windowed) starts the process with
+# no console attached, so Python sets sys.stdout, sys.stderr and sys.stdin to
+# None. Any bare `sys.stdout.<attr>` access then raises AttributeError at import
+# time — before the GUI can even show a window. Swapping in throwaway in-memory
+# buffers fixes the whole class of bug at once: every downstream stdio user
+# (this module's ~200 print() calls, backup_checker_gui's stream redirection,
+# logging's stderr fallback, boto3, any third-party library) keeps working
+# unchanged instead of needing its own None check.
+#
+# In a real terminal all three streams are real objects, so nothing here fires
+# and behaviour — colour output included — is byte-for-byte what it was.
+import io, sys
+
+if sys.stdout is None:
+    sys.stdout = io.StringIO()
+if sys.stderr is None:
+    sys.stderr = io.StringIO()
+if sys.stdin is None:
+    sys.stdin = io.StringIO()
+
 import json, argparse, sys, os, re, time, csv, io
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,10 +50,24 @@ for _stream in (sys.stdout, sys.stderr):
         except Exception:
             pass
 
+def app_dir():
+    """Folder the script — or the exe — actually lives in.
+
+    Not Path(__file__).parent: in a PyInstaller one-file build __file__ points
+    into the temporary _MEIPASS extraction folder, which is deleted when the
+    process exits. Config read from there would be a stale unpacked copy and
+    reports written there would vanish on close, so resolve against the exe
+    instead whenever we're frozen.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+
 # ── constants ─────────────────────────────────────────────────────────────────
 DATE_FORMAT        = "%Y-%m-%d"
-DEFAULT_CONFIG     = Path(__file__).parent / "backup_config.xlsx"
-DEFAULT_OUTPUT_STEM = Path(__file__).parent / "backup_report"
+DEFAULT_CONFIG     = app_dir() / "backup_config.xlsx"
+DEFAULT_OUTPUT_STEM = app_dir() / "backup_report"
 DEFAULT_MIN_MB     = 20
 DEFAULT_MAX_DAYS   = 10
 VALID_EXTENSIONS   = {".sql", ".gz", ".dump", ".tar", ".xb", ".qp", ".bak", ".zip"}
@@ -54,7 +89,20 @@ class CheckerAbort(BaseException):
     pass
 
 # ── ANSI colour helpers ───────────────────────────────────────────────────────
-USE_COLOR = sys.stdout.isatty() and os.name != "nt"
+def _stdout_isatty():
+    """True only when stdout is a real terminal.
+
+    Guarded because sys.stdout may be the replacement buffer installed by the
+    stdio guard above (windowed build — no console), or a detached/closed
+    stream whose isatty() raises ValueError. Neither is a terminal, so both
+    answer False and colour stays off; a real tty is unaffected.
+    """
+    try:
+        return bool(sys.stdout.isatty())
+    except Exception:
+        return False
+
+USE_COLOR = _stdout_isatty() and os.name != "nt"
 def _c(code): return f"\033[{code}m" if USE_COLOR else ""
 R  = _c("0");  B  = _c("1");  GR = _c("32")
 YL = _c("33"); RD = _c("31"); DM = _c("2")

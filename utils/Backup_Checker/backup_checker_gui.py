@@ -10,8 +10,31 @@ its console output live into the window.
 
 from __future__ import annotations
 
+# ── stdio guard — must run before any other project import ────────────────────
+# PyInstaller's windowed mode (--noconsole / --windowed) starts the process with
+# no console attached, so Python sets sys.stdout, sys.stderr and sys.stdin to
+# None. Any bare `sys.stdout.<attr>` access then raises AttributeError at import
+# time — before the GUI can even show a window. Swapping in throwaway in-memory
+# buffers fixes the whole class of bug at once: every downstream stdio user
+# (backup_checker's ~200 print() calls, the stdout/stderr swap in _run_worker,
+# logging's stderr fallback, boto3, any third-party library) keeps working
+# unchanged instead of needing its own None check.
+#
+# In a real terminal all three streams are real objects, so nothing here fires
+# and behaviour is byte-for-byte what it was. backup_checker.py carries the same
+# guard, so the CLI entry point is covered too.
+import io, sys
+
+if sys.stdout is None:
+    sys.stdout = io.StringIO()
+if sys.stderr is None:
+    sys.stderr = io.StringIO()
+if sys.stdin is None:
+    sys.stdin = io.StringIO()
+
 import io
 import json
+import logging
 import os
 import queue
 import subprocess
@@ -20,6 +43,7 @@ import threading
 import tkinter as tk
 import webbrowser
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
@@ -31,9 +55,36 @@ APP_VERSION = "1.0"
 
 def app_dir() -> Path:
     """Folder the exe/script lives in (not PyInstaller's temp _MEIPASS)."""
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).parent
+    return bc.app_dir()          # single definition, shared with the CLI
+
+
+def rel_to_app(path) -> str:
+    """Render a path relative to the app folder when it lives inside it.
+
+    settings.json is stored in %APPDATA%, so it outlives any particular copy of
+    the app. Saving an absolute path there breaks as soon as the folder moves or
+    the app runs on another machine — exactly how the old Google-Drive path got
+    stuck. A path outside the app folder has no portable form, so it stays
+    absolute.
+    """
+    try:
+        inside = Path(path).resolve().relative_to(app_dir().resolve())
+    except (ValueError, OSError):
+        return str(path)
+    return f".{os.sep}{inside}"
+
+
+def abs_from_app(path) -> str:
+    """Anchor a stored path: relative ones hang off the app folder, not the CWD.
+
+    A GUI launched from a shortcut or the Start menu inherits an arbitrary
+    working directory, so a relative path must be resolved explicitly or it
+    would point somewhere unpredictable.
+    """
+    p = Path(path)
+    if p.is_absolute():
+        return str(p)
+    return str((app_dir() / p).resolve())
 
 
 def settings_path() -> Path:
@@ -43,15 +94,69 @@ def settings_path() -> Path:
     return d / "settings.json"
 
 
+def log_path() -> Path:
+    """Where the windowed build writes its log — next to settings.json."""
+    return settings_path().with_name("backup_checker.log")
+
+
+def setup_logging() -> Path:
+    """Route log records to a file instead of the console.
+
+    logging's fallback handler — and any StreamHandler a library installs —
+    writes to sys.stderr. In a windowed build that is the throwaway buffer from
+    the stdio guard at the top of this file, so records would accumulate in
+    memory and be lost on exit. A rotating file handler keeps them somewhere a
+    user can actually read after a crash.
+    """
+    path = log_path()
+    handler = RotatingFileHandler(path, maxBytes=1_000_000, backupCount=3,
+                                  encoding="utf-8")
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s  %(levelname)-8s  %(name)s: %(message)s"))
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    for existing in list(root.handlers):     # drop console handlers, if any
+        root.removeHandler(existing)
+    root.addHandler(handler)
+    for noisy in ("boto3", "botocore", "urllib3", "s3transfer"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+    return path
+
+
 DEFAULTS = {
-    "config": str(app_dir() / "backup_config.xlsx"),
-    "output": str(app_dir() / "backup_report"),
+    "config": rel_to_app(app_dir() / "backup_config.xlsx"),
+    "output": rel_to_app(app_dir() / "backup_report"),
     "profile": "",
     "region": "us-east-1",
     "min_size_mb": str(bc.DEFAULT_MIN_MB),
     "max_age_days": str(bc.DEFAULT_MAX_DAYS),
     "dry_run": False,
 }
+
+
+def _prefer_local_paths(values: dict) -> dict:
+    """Fall back to the copies beside the app when a remembered path is stale.
+
+    settings.json lives in %APPDATA%, not beside the exe, so it follows the user
+    across machines and folders while the paths inside it do not. An absolute
+    path saved from a mapped drive or a synced folder is often unreachable on
+    the next machine, and without this the app would keep pointing there instead
+    of at the backup_config.xlsx sitting right next to it.
+
+    A config the user deliberately browsed to is kept as long as it still
+    resolves — only genuinely unusable paths are replaced.
+    """
+    try:
+        if not Path(abs_from_app(values["config"])).is_file():
+            values["config"] = DEFAULTS["config"]
+    except (OSError, ValueError, TypeError, KeyError):
+        values["config"] = DEFAULTS["config"]
+    try:
+        if not Path(abs_from_app(values["output"])).parent.is_dir():
+            values["output"] = DEFAULTS["output"]
+    except (OSError, ValueError, TypeError, KeyError):
+        values["output"] = DEFAULTS["output"]
+    return values
 
 
 def load_settings() -> dict:
@@ -61,7 +166,7 @@ def load_settings() -> dict:
             data = json.loads(p.read_text(encoding="utf-8"))
             merged = dict(DEFAULTS)
             merged.update(data)
-            return merged
+            return _prefer_local_paths(merged)
         except Exception:
             pass
     return dict(DEFAULTS)
@@ -352,25 +457,25 @@ class BackupCheckerGUI:
 
     # ── file pickers ────────────────────────────────────────────────────
     def _browse_config(self):
-        start = Path(self.var_config.get()).parent if self.var_config.get() else app_dir()
+        start = Path(abs_from_app(self.var_config.get())).parent if self.var_config.get() else app_dir()
         path = filedialog.askopenfilename(
             title="Select backup config file",
             initialdir=str(start) if start.exists() else str(app_dir()),
             filetypes=[("Excel / JSON config", "*.xlsx *.xlsm *.json"), ("All files", "*.*")],
         )
         if path:
-            self.var_config.set(path)
+            self.var_config.set(rel_to_app(path))
 
     def _browse_output(self):
-        start = Path(self.var_output.get()).parent if self.var_output.get() else app_dir()
+        start = Path(abs_from_app(self.var_output.get())).parent if self.var_output.get() else app_dir()
         path = filedialog.asksaveasfilename(
             title="Select output base name (no extension)",
             initialdir=str(start) if start.exists() else str(app_dir()),
-            initialfile=Path(self.var_output.get()).name or "backup_report",
+            initialfile=Path(abs_from_app(self.var_output.get())).name or "backup_report",
             defaultextension="",
         )
         if path:
-            self.var_output.set(path)
+            self.var_output.set(rel_to_app(path))
 
     # ── run pipeline ─────────────────────────────────────────────────────
     def _current_values(self) -> dict:
@@ -417,7 +522,8 @@ class BackupCheckerGUI:
 
         self.worker = threading.Thread(
             target=self._run_worker,
-            args=(vals["config"], vals["output"], vals["profile"] or None,
+            args=(abs_from_app(vals["config"]), abs_from_app(vals["output"]),
+                  vals["profile"] or None,
                   vals["region"], min_size_mb, max_age_days, vals["dry_run"]),
             daemon=True,
         )
@@ -550,9 +656,20 @@ class BackupCheckerGUI:
 
 
 def main():
+    log_file = setup_logging()
+    logging.info("%s %s starting (frozen=%s) — log: %s",
+                 APP_NAME, APP_VERSION, bool(getattr(sys, "frozen", False)), log_file)
+
+    # A windowed build has no console for a traceback to land on, so send both
+    # the interpreter's and Tk's unhandled-exception paths to the log file.
+    sys.excepthook = lambda *exc: logging.critical("Unhandled exception", exc_info=exc)
+
     root = tk.Tk()
+    root.report_callback_exception = lambda *exc: logging.critical(
+        "Unhandled exception in Tk callback", exc_info=exc)
     BackupCheckerGUI(root)
     root.mainloop()
+    logging.info("%s exiting", APP_NAME)
 
 
 if __name__ == "__main__":
