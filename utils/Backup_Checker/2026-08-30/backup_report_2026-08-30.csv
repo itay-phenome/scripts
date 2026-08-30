@@ -15,7 +15,7 @@ Kaiima,Kaiima,ok,2026-08-29,557.3 MB,,s3://phenome-kaiima-mysql-backup/rds_weekl
 Kraftheinz,Kraftheinz,ok,2026-08-29,197.1 MB,,s3://phenome-kraftheinz-mysql-weekly-backup/weekly_backups/2026-08-29/
 Pepsico,Pepsico,ok,2026-08-29,85.4 MB,,s3://phenome-pepsico-mysql-backup/weekly_backup/2026-08-29/
 Origene,Origene,ok,2026-08-29,1.0 GB,,s3://phenome-origene-mysql-backup/rds_weekly_backup/2026-08-29/
-British American (BAT),BAT,na,,,Disabled,
+British American (BAT),BAT,suspect,2026-04-25,444.3 MB,Latest backup is 127 day(s) old (max allowed: 7),s3://phenome-bat-mysql-weekly-backup/weekly_backups/2026-04-25/
 East West Seeds Indonesia,East West Seeds,ok,2026-08-29,1.4 GB,,s3://ews-indonesia-mysql-daily-backups/rds_weekly_backup/2026-08-29/
 Ramiro,Ramiro,ok,2026-08-29,1.1 GB,,s3://phenome-ramiro-mysql-weekly/weekly_backup/2026-08-29/
 McCain,McCain,ok,2026-08-29,766.5 MB,,s3://phenome-mccain-mysql-weekly/rds_weekly_backup/2026-08-29/
@@ -37,3 +37,7 @@ GDM Production,GDM,na,,,Disabled,
 Enza Test,Enza Zaden,ok,2026-08-29,10.1 GB,,s3://enza-test-database-backup/rds_weekly_backup/2026-08-29/
 Enza Accept,Enza Zaden,ok,2026-08-29,10.1 GB,,s3://enza-accept-database-backup/rds_weekly_backup/2026-08-29/
 Enza Production,Enza Zaden,ok,2026-08-30,11.7 GB,,s3://enza-prod-weekly-database-backup/weekly_backup/2026-08-30/
+HARMONIZ,HARMONIZ,suspect,2026-08-29,73.6 KB,Size 73.6 KB below threshold (5.0 MB),s3://phenome-harmoniz-mysql-backup/rds_weekly_backup/2026-08-29/
+GDM Seeds - DEV,GDM,missing,,,No YYYY-MM-DD subfolders found under s3://phenome-onprem-mysql-backup/gdmseeds-dev-db-backup/,
+Becks Hybrids,Becks Hybrids,na,,,Disabled,
+Harnesstom,Harnesstom,ok,2026-08-29,1.3 GB,,s3://phenome-harnesstom-mysql-backup/weekly_backup/2026-08-29/

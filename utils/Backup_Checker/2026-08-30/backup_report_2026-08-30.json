@@ -2,17 +2,17 @@
   "reportDate": "2026-08-30",
   "reportWeek": "W35 / 2026",
   "reviewer": "Itay",
-  "generatedAt": "2026-08-30T10:09:06.845193+00:00",
+  "generatedAt": "2026-08-30T11:28:11.099093+00:00",
   "flags": {
     "minSizeMb": 5,
     "maxAgeDays": 7,
     "awsProfile": "(default)"
   },
   "summary": {
-    "total": 38,
-    "ok": 32,
-    "missing": 0,
-    "suspect": 0,
+    "total": 42,
+    "ok": 33,
+    "missing": 1,
+    "suspect": 2,
     "na": 6
   },
   "rows": [
@@ -163,11 +163,11 @@
     {
       "name": "British American (BAT)",
       "group": "BAT",
-      "status": "na",
-      "size": "",
-      "backupDate": "",
-      "notes": "Disabled",
-      "path": ""
+      "status": "suspect",
+      "size": "444.3 MB",
+      "backupDate": "2026-04-25",
+      "notes": "Latest backup is 127 day(s) old (max allowed: 7)",
+      "path": "s3://phenome-bat-mysql-weekly-backup/weekly_backups/2026-04-25/"
     },
     {
       "name": "East West Seeds Indonesia",
@@ -357,11 +357,47 @@
       "backupDate": "2026-08-30",
       "notes": "",
       "path": "s3://enza-prod-weekly-database-backup/weekly_backup/2026-08-30/"
+    },
+    {
+      "name": "HARMONIZ",
+      "group": "HARMONIZ",
+      "status": "suspect",
+      "size": "73.6 KB",
+      "backupDate": "2026-08-29",
+      "notes": "Size 73.6 KB below threshold (5.0 MB)",
+      "path": "s3://phenome-harmoniz-mysql-backup/rds_weekly_backup/2026-08-29/"
+    },
+    {
+      "name": "GDM Seeds - DEV",
+      "group": "GDM",
+      "status": "missing",
+      "size": "",
+      "backupDate": "",
+      "notes": "No YYYY-MM-DD subfolders found under s3://phenome-onprem-mysql-backup/gdmseeds-dev-db-backup/",
+      "path": ""
+    },
+    {
+      "name": "Becks Hybrids",
+      "group": "Becks Hybrids",
+      "status": "na",
+      "size": "",
+      "backupDate": "",
+      "notes": "Disabled",
+      "path": ""
+    },
+    {
+      "name": "Harnesstom",
+      "group": "Harnesstom",
+      "status": "ok",
+      "size": "1.3 GB",
+      "backupDate": "2026-08-29",
+      "notes": "",
+      "path": "s3://phenome-harnesstom-mysql-backup/weekly_backup/2026-08-29/"
     }
   ],
   "outputPaths": {
-    "json": "G:\\.shortcut-targets-by-id\\1Aa_uz7RW_XGIeCbQ6gh3B4AQvmMMMBsO\\Google - Phenome - IT\\HowTos\\Itay\\Scripts\\Backup_Checker\\2026-08-30\\backup_report_2026-08-30.json",
-    "html": "G:\\.shortcut-targets-by-id\\1Aa_uz7RW_XGIeCbQ6gh3B4AQvmMMMBsO\\Google - Phenome - IT\\HowTos\\Itay\\Scripts\\Backup_Checker\\2026-08-30\\backup_report_2026-08-30.html",
-    "csv": "G:\\.shortcut-targets-by-id\\1Aa_uz7RW_XGIeCbQ6gh3B4AQvmMMMBsO\\Google - Phenome - IT\\HowTos\\Itay\\Scripts\\Backup_Checker\\2026-08-30\\backup_report_2026-08-30.csv"
+    "json": "C:\\Users\\itay-b\\OneDrive - Phenome-Networks\\Laptop_Documents\\GitHub\\scripts\\utils\\Backup_Checker\\2026-08-30\\backup_report_2026-08-30.json",
+    "html": "C:\\Users\\itay-b\\OneDrive - Phenome-Networks\\Laptop_Documents\\GitHub\\scripts\\utils\\Backup_Checker\\2026-08-30\\backup_report_2026-08-30.html",
+    "csv": "C:\\Users\\itay-b\\OneDrive - Phenome-Networks\\Laptop_Documents\\GitHub\\scripts\\utils\\Backup_Checker\\2026-08-30\\backup_report_2026-08-30.csv"
   }
 }
