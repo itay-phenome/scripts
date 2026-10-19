@@ -1,0 +1,42 @@
+# Elastic Agent (Fleet). Separate compose project, not touched by update_revision.sh.
+# Non-fatal: a failure here must not break the application bootstrap above.
+set +e
+FLEET_TOKEN=$(echo "$SECRET_JSON" | jq -r '.fleet_enrollment_token // empty')
+if [ -n "$FLEET_TOKEN" ]; then
+  IMDS_TOKEN=$(curl -sX PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')
+  LOCAL_IP=$(curl -sH "X-aws-ec2-metadata-token: $IMDS_TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4)
+  AGENT_NAME="syngenta-${role}-${env}-ip-$(echo "$LOCAL_IP" | tr . -)"
+
+  mkdir -p /opt/elastic-agent/state
+  (umask 077; printf 'FLEET_ENROLLMENT_TOKEN=%s\n' "$FLEET_TOKEN" > /opt/elastic-agent/.env)
+
+  cat > /opt/elastic-agent/docker-compose.yml <<EOF_AGENT
+services:
+  elastic-agent:
+    image: docker.elastic.co/elastic-agent/elastic-agent:${elastic_agent_version}
+    container_name: elastic-agent
+    hostname: $AGENT_NAME
+    restart: unless-stopped
+    user: root
+    network_mode: host
+    pid: host
+    env_file: .env
+    environment:
+      - FLEET_ENROLL=1
+      - FLEET_URL=${fleet_url}
+      - ELASTIC_AGENT_TAGS=phenomeone,${env},${role}
+    volumes:
+      - ./state:/usr/share/elastic-agent/state
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+      - /proc:/hostfs/proc:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /:/hostfs:ro
+EOF_AGENT
+
+  (cd /opt/elastic-agent && docker-compose up -d)
+else
+  echo "fleet_enrollment_token not set, skipping Elastic Agent"
+fi
+set -e

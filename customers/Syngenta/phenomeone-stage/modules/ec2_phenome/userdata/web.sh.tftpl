@@ -1,0 +1,630 @@
+#!/bin/bash
+set -e
+
+dnf update -y
+dnf install -y docker jq unzip zip socat cronie
+systemctl enable crond
+systemctl start crond
+
+DOCKER_COMPOSE_VERSION="2.24.0"
+curl -L "https://github.com/docker/compose/releases/download/v$DOCKER_COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+systemctl enable docker
+systemctl start docker
+
+# Syngenta Root CA (needed for MINT integration TLS - mint.cloud.syngenta.org)
+mkdir -p /opt/unity-web/config/certs
+cat > /opt/unity-web/config/certs/SyngentaRootCA.crt <<'EOF_SYNGENTA_CA'
+-----BEGIN CERTIFICATE-----
+MIIFlzCCA3+gAwIBAgIQTp3URxWoUoJKs0zsWq3NJzANBgkqhkiG9w0BAQUFADBe
+MRMwEQYKCZImiZPyLGQBGRYDT1JHMRgwFgYKCZImiZPyLGQBGRYIU1lOR0VOVEEx
+FDASBgoJkiaJk/IsZAEZFgRFQU1FMRcwFQYDVQQDEw5TeW5nZW50YVJvb3RDQTAe
+Fw0xMDA5MDMxODA1NTFaFw0zNTA5MDMxODEyNDhaMF4xEzARBgoJkiaJk/IsZAEZ
+FgNPUkcxGDAWBgoJkiaJk/IsZAEZFghTWU5HRU5UQTEUMBIGCgmSJomT8ixkARkW
+BEVBTUUxFzAVBgNVBAMTDlN5bmdlbnRhUm9vdENBMIICIjANBgkqhkiG9w0BAQEF
+AAOCAg8AMIICCgKCAgEAo80FMlSka74wWk3zmw9/Rxre5samuap2kRSORiXF0Rhk
+EjYTQl5XIUWbuTlmLcb/16Rjt0lo8YpsaON74l1+88dPLi9038yPRCxL5o0ElOp+
+KEKZDsnGspig4vWeLlu95T8O6rxi+UvYL81upnvwivfYXnMxo24rS3/rky8fOfrx
+cP6cgNhL8Ys18hv/k9IxCoxX0Vxq35LklG69VyGLfKR2uaH5fWGsO+HZ1pF5zIZ+
+VU9dE60EkF4m0nbHrHsaPMlnhimdxfyydNdMIWKlVxtBWvQjm2BTcLEzIkHXcH7g
+gigFbbjZanfhll2Mj4jZ9gY7xCjHYl+MsrVSU+sgYbL0GWEJs4ht/cqj9kY3qPBs
+yLK32iRosOyZ3u1+hxj8Q8/OXFW1Lhik9wLldZUhHGMyYK/kVTk3DHMB/5GRkCuh
+RPoigFTZqAmYXMyvbTu7bCOrIOqdMToCWvxc+BHsfNv4Q/HFUMLihr4NLAmxLuHO
+4YOvuksCZ4VsZU73Zt/u1I2mvDOGNH2y2+KS5ybj4dIoVcavu+3TE3NyQUm6G0P+
+woCLgaL+AA19K7lTbpBwvxTnHFH0onifXLIgjWJK84cEb2PFNIm208NhvHh8WUrL
+FUGDTRIoDvb9Cl9erey4bADytXE9HxQZervK+UZLI8o7Xi83VXFse/6jC6nXWdEC
+AwEAAaNRME8wCwYDVR0PBAQDAgGGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYE
+FMewsdfkHpEcUup3GISP4tJoJf+HMBAGCSsGAQQBgjcVAQQDAgEAMA0GCSqGSIb3
+DQEBBQUAA4ICAQAvuoC29eAxQ5otqNhsZoy8uxIqbM/gaRI9uQsW4F4D/jCVkYGt
+s4zwil5w27QxA8TrqLkJf/dBcPRJvqViIvxAGIMUkWxwjvd9s9dmWqbrKsA4NdiH
+1ohTmUzpEOfMLHuQ3mXF8mSO/L8EyXN1kX37VCBqGG3Yk9m+F1kL5VCChXz9jFIF
+oRrePDRAb/qQEe6xnpPGMB7EjV/zeimYkZCV9GQ4rpHwhv0ETMlij3sGhn26EnkA
+S8wP3cURXvrI8bsAGXOsVQXQidBAeegB9yjIlVIRN3RujY1BBVg7vH9R6vPzGQXC
+icaRBeUuy1yjwSIScJ4dIVSi06GBofr/FWZeLqJdt0I8hdwYehLBwLX0vAuh9Kom
+1DhzNL1C53hjjHGtrlMtOhXUG3m40lYcPQQwQtqFqRozBx7GaRrMLJ2i2tcG8Jl2
+xxtHHxK4eH2drzIEDeaRFU93OWy/GlXUAtANcZPD7MIXzhwWEMASPBfMUmpBRc0q
+XGgxZVBPCS1iOwzke1AcBoCP/6ZJLhwQ52cFFHfqqhY7ri2aIiVdHXg+mbCMY9GZ
+kV+W6Y/jZpV+3cAmPauCe6j0c8GzZaAsuotZ+wR/XFXgj9Ekq9ASWLGs63fl1p6/
+VpZFjd2hYdJEGF2DmZT+4Upl6CPHqUXnO2BIMM34n4KKsvivL2v1/CbZPQ==
+-----END CERTIFICATE-----
+EOF_SYNGENTA_CA
+cp /opt/unity-web/config/certs/SyngentaRootCA.crt /etc/pki/ca-trust/source/anchors/SyngentaRootCA.crt
+update-ca-trust extract
+cp /etc/pki/tls/certs/ca-bundle.crt /opt/unity-web/config/certs/ca-bundle.crt
+
+APP_REGION="${region}"
+
+# Fetch credentials from Secrets Manager
+SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${web_secret_name}" --region "$APP_REGION" --query SecretString --output text)
+DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.db_password')
+
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 590183981388.dkr.ecr.us-east-1.amazonaws.com
+
+mkdir -p /opt/unity-web/config/web
+
+cat > /opt/unity-web/config/web/webapp.conf <<EOF_WEBCONF
+name WebApp
+environment prod
+reset_password_valid_hours 5
+work_dir /tmp/web_server
+storage_handler S3
+queue_handler SQS
+cookie_Secure true
+cookie_SameSite Lax
+revision ${revision}
+changelog 1097
+email_sender support@phenome-networks.com
+region $APP_REGION
+phenome_server_url http://127.0.0.1
+
+<Model::PHN2>
+    <connect_info>
+        dsn               dbi:mysql:database=${db_name};host=${db_endpoint};port=${db_port}
+        user              ${db_user}
+        password          $DB_PASSWORD
+        quote_names       1
+        mysql_enable_utf8 1
+        mysql_local_infile 1
+    </connect_info>
+</Model::PHN2>
+
+<S3>
+    auth_method V4
+    region $APP_REGION
+</S3>
+
+<Storage tiledb>
+    bucket_name ${tiledb_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/web_server/genomics
+    region $APP_REGION
+</Storage>
+
+<Storage uploads>
+    bucket_name ${uploads_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/uploads
+    region $APP_REGION
+</Storage>
+
+<Storage images>
+    bucket_name ${images_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/images
+    region $APP_REGION
+</Storage>
+
+<Storage analyses>
+    bucket_name ${analyses_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/analyses
+    region $APP_REGION
+</Storage>
+
+<Storage reports>
+    bucket_name ${images_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/reports
+    region $APP_REGION
+</Storage>
+
+<Storage documents>
+    bucket_name ${documents_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/documents
+    region $APP_REGION
+</Storage>
+
+<SQS>
+    region $APP_REGION
+</SQS>
+
+<Queue other>
+    queue_name arn:aws:sqs:$APP_REGION:590183981388:${sqs_queue_name}
+</Queue>
+
+<Queue assoc>
+    queue_name arn:aws:sqs:$APP_REGION:590183981388:${sqs_queue_name}
+</Queue>
+
+<Queue analysis>
+    queue_name arn:aws:sqs:$APP_REGION:590183981388:${sqs_queue_name}
+</Queue>
+
+<SNS MintMaterial>
+    topic   ${sns_mint_material_arn}
+    region  us-east-1
+</SNS>
+
+<SNS MintIdentity>
+    topic   ${sns_mint_integration_arn}
+    region  us-east-1
+</SNS>
+EOF_WEBCONF
+
+cat > /opt/unity-web/config/web/webapp_log.conf <<EOF_LOGCONF
+log4perl.logger = DEBUG, Screen, Logfile
+log4perl.appender.Screen = Log::Log4perl::Appender::Screen
+log4perl.appender.Screen.stderr = 0
+log4perl.appender.Screen.layout = Log::Log4perl::Layout::PatternLayout
+log4perl.appender.Screen.layout.ConversionPattern = %p %P %C::%M-%L %d - %m%n
+log4perl.appender.Logfile = Log::Log4perl::Appender::File
+log4perl.appender.Logfile.filename = /var/log/webapp.log
+log4perl.appender.Logfile.layout = Log::Log4perl::Layout::PatternLayout
+log4perl.appender.Logfile.layout.ConversionPattern = %d %p %C::%M-%L , %m%n
+EOF_LOGCONF
+
+cat > /opt/unity-web/config/web/webapp.json <<EOF_WEBJSON
+{
+  "name": "WebApp",
+  "environment": "prod",
+  "reset_password_valid_hours": 5,
+  "work_dir": "/tmp/web_server",
+  "storage_handler": "S3",
+  "queue_handler": "SQS",
+  "cookie_Secure": true,
+  "cookie_SameSite": "Lax",
+  "revision": ${revision},
+  "changelog": 1097,
+  "email_sender": "support@phenome-networks.com",
+  "region": "$APP_REGION",
+  "phenome_server_url": "http://127.0.0.1",
+  "Model::PHN2": {
+    "connect_info": {
+      "dsn": "dbi:mysql:database=${db_name};host=${db_endpoint};port=${db_port}",
+      "user": "${db_user}",
+      "password": "$DB_PASSWORD",
+      "quote_names": 1,
+      "mysql_enable_utf8": 1,
+      "mysql_local_infile": 1
+    }
+  },
+  "S3": {
+    "auth_method": "V4",
+    "region": "$APP_REGION"
+  },
+  "SQS": {
+    "region": "$APP_REGION"
+  },
+  "Storage": {
+    "tiledb": {
+      "bucket_name": "${tiledb_bucket_name}",
+      "ws_root": "https://s3.$APP_REGION.amazonaws.com",
+      "work_dir": "/tmp/web_server/genomics",
+      "region": "$APP_REGION"
+    },
+    "uploads": {
+      "bucket_name": "${uploads_bucket_name}",
+      "ws_root": "https://s3.$APP_REGION.amazonaws.com",
+      "work_dir": "/tmp/job_server/uploads",
+      "region": "$APP_REGION"
+    },
+    "images": {
+      "bucket_name": "${images_bucket_name}",
+      "ws_root": "https://s3.$APP_REGION.amazonaws.com",
+      "work_dir": "/tmp/job_server/images",
+      "region": "$APP_REGION"
+    },
+    "analyses": {
+      "bucket_name": "${analyses_bucket_name}",
+      "ws_root": "https://s3.$APP_REGION.amazonaws.com",
+      "work_dir": "/tmp/job_server/analyses",
+      "region": "$APP_REGION"
+    },
+    "reports": {
+      "bucket_name": "${images_bucket_name}",
+      "ws_root": "https://s3.$APP_REGION.amazonaws.com",
+      "work_dir": "/tmp/job_server/reports",
+      "region": "$APP_REGION"
+    },
+    "documents": {
+      "bucket_name": "${documents_bucket_name}",
+      "ws_root": "https://s3.$APP_REGION.amazonaws.com",
+      "work_dir": "/tmp/job_server/documents",
+      "region": "$APP_REGION"
+    }
+  },
+  "SNS": {
+    "MintMaterial": {
+      "topic": "${sns_mint_material_arn}",
+      "region": "us-east-1"
+    },
+    "MintIdentity": {
+      "topic": "${sns_mint_integration_arn}",
+      "region": "us-east-1"
+    }
+  }
+}
+EOF_WEBJSON
+
+cat > /opt/unity-web/docker-compose.yml <<EOF_COMPOSE
+version: '3.8'
+
+services:
+  python:
+    image: 590183981388.dkr.ecr.us-east-1.amazonaws.com/phenomeone-dev-phn-flask-ecr:${revision}
+    container_name: python
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-bundle.crt
+    volumes:
+      - ./config/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt:ro
+      - ./config/web/webapp.conf:/srv/vhosts/unity/webapp.conf:ro
+      - ./config/web/webapp.conf:/opt/phn/unity/WebApp/webapp.conf:ro
+      - ./config/web/webapp_log.conf:/srv/vhosts/unity/webapp_log.conf:ro
+      - ./config/web/webapp_log.conf:/opt/phn/unity/WebApp/webapp_log.conf:ro
+      - ./config/web/webapp.json:/opt/phn/unity.R${revision}/WebApp/lib/PHN/Python/webapp_conf.json:ro
+    networks:
+      - unity-net
+
+  web:
+    image: 590183981388.dkr.ecr.us-east-1.amazonaws.com/phenomeone-dev-phn-web-ecr:${revision}
+    container_name: web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+      - HTTPS_CA_FILE=/etc/ssl/certs/ca-bundle.crt
+      - PERL_LWP_SSL_CA_FILE=/etc/ssl/certs/ca-bundle.crt
+      - PERL5LIB=/opt/phn/unity.R${revision}/WebApp/lib:/srv/vhosts/unity/lib
+    volumes:
+      - ./config/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt:ro
+      - ./config/web/webapp.conf:/srv/vhosts/unity/webapp.conf:ro
+      - ./config/web/webapp.conf:/opt/phn/unity.R${revision}/WebApp/webapp.conf:ro
+      - ./config/web/webapp_log.conf:/srv/vhosts/unity/webapp_log.conf:ro
+      - ./config/web/webapp_log.conf:/opt/phn/unity.R${revision}/WebApp/webapp_log.conf:ro
+    command: sh -c 'socat TCP-LISTEN:5001,fork TCP:python:5001 & plackup -I /srv/vhosts/unity/lib -I /opt/phn/unity.R${revision}/WebApp/lib -s Starman --host 0.0.0.0 --workers ${web_workers} --port 80 /srv/vhosts/unity/script/webapp_plack.plk'
+    depends_on:
+      - python
+    networks:
+      - unity-net
+
+networks:
+  unity-net:
+    driver: bridge
+EOF_COMPOSE
+
+cd /opt/unity-web
+docker-compose up -d
+
+# Save current revision
+echo "${revision}" > /opt/unity-web/.current_revision
+
+# Write update_revision script
+cat > /opt/unity-web/update_revision.sh <<'ENDSCRIPT'
+#!/bin/bash
+set -euo pipefail
+
+MODE="$${1:-}"
+if [ "$MODE" != "web" ] && [ "$MODE" != "job" ]; then
+  echo "Usage: $0 <web|job>"
+  exit 1
+fi
+
+REGION="${region}"
+SSM_PARAM_NAME="${ssm_param_path}"
+ACCOUNT_ID="590183981388"
+ECR_REGISTRY="$ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com"
+
+if [ "$MODE" = "web" ]; then
+  COMPOSE_DIR="/opt/unity-web"
+else
+  COMPOSE_DIR="/opt/unity-job"
+fi
+
+REVISION_FILE="$COMPOSE_DIR/.current_revision"
+LOG="/var/log/update_revision_$${MODE}.log"
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') [$MODE] $*" >> "$LOG"; }
+
+NEW_REVISION=$(aws ssm get-parameter --name "$SSM_PARAM_NAME" --region "$REGION" --query 'Parameter.Value' --output text 2>>"$LOG") || {
+  log "ERROR: failed to read SSM parameter"
+  exit 1
+}
+
+CURRENT_REVISION=""
+if [ -f "$REVISION_FILE" ]; then
+  CURRENT_REVISION=$(cat "$REVISION_FILE")
+fi
+
+if [ "$NEW_REVISION" = "$CURRENT_REVISION" ]; then
+  exit 0
+fi
+
+log "Revision changed: $CURRENT_REVISION -> $NEW_REVISION. Redeploying..."
+
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$ECR_REGISTRY" >> "$LOG" 2>&1
+
+SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${web_secret_name}" --region "$REGION" --query SecretString --output text)
+DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.db_password')
+
+DB_NAME="${db_name}"
+DB_ENDPOINT="${db_endpoint}"
+DB_PORT="${db_port}"
+DB_USER="${db_user}"
+SQS_QUEUE="${sqs_queue_name}"
+QUEUE_ARN="arn:aws:sqs:$REGION:$ACCOUNT_ID:$SQS_QUEUE"
+
+TILEDB_BUCKET="${tiledb_bucket_name}"
+UPLOADS_BUCKET="${uploads_bucket_name}"
+IMAGES_BUCKET="${images_bucket_name}"
+ANALYSES_BUCKET="${analyses_bucket_name}"
+REPORTS_BUCKET="${reports_bucket_name}"
+DOCUMENTS_BUCKET="${documents_bucket_name}"
+WEB_WORKERS=${web_workers}
+
+cat > "$COMPOSE_DIR/config/web/webapp.conf" <<CONF
+name WebApp
+environment prod
+reset_password_valid_hours 5
+work_dir /tmp/web_server
+storage_handler S3
+queue_handler SQS
+cookie_Secure true
+cookie_SameSite Lax
+revision $NEW_REVISION
+changelog 1097
+email_sender support@phenome-networks.com
+region $REGION
+phenome_server_url http://127.0.0.1
+
+<Model::PHN2>
+    <connect_info>
+        dsn               dbi:mysql:database=$DB_NAME;host=$DB_ENDPOINT;port=$DB_PORT
+        user              $DB_USER
+        password          $DB_PASSWORD
+        quote_names       1
+        mysql_enable_utf8 1
+        mysql_local_infile 1
+    </connect_info>
+</Model::PHN2>
+
+<S3>
+    auth_method V4
+    region $REGION
+</S3>
+
+<Storage tiledb>
+    bucket_name $TILEDB_BUCKET
+    ws_root https://s3.$REGION.amazonaws.com
+    work_dir /tmp/web_server/genomics
+    region $REGION
+</Storage>
+
+<Storage uploads>
+    bucket_name $UPLOADS_BUCKET
+    ws_root https://s3.$REGION.amazonaws.com
+    work_dir /tmp/job_server/uploads
+    region $REGION
+</Storage>
+
+<Storage images>
+    bucket_name $IMAGES_BUCKET
+    ws_root https://s3.$REGION.amazonaws.com
+    work_dir /tmp/job_server/images
+    region $REGION
+</Storage>
+
+<Storage analyses>
+    bucket_name $ANALYSES_BUCKET
+    ws_root https://s3.$REGION.amazonaws.com
+    work_dir /tmp/job_server/analyses
+    region $REGION
+</Storage>
+
+<Storage reports>
+    bucket_name $IMAGES_BUCKET
+    ws_root https://s3.$REGION.amazonaws.com
+    work_dir /tmp/job_server/reports
+    region $REGION
+</Storage>
+
+<Storage documents>
+    bucket_name $DOCUMENTS_BUCKET
+    ws_root https://s3.$REGION.amazonaws.com
+    work_dir /tmp/job_server/documents
+    region $REGION
+</Storage>
+
+<SQS>
+    region $REGION
+</SQS>
+
+<Queue other>
+    queue_name $QUEUE_ARN
+</Queue>
+
+<Queue assoc>
+    queue_name $QUEUE_ARN
+</Queue>
+
+<Queue analysis>
+    queue_name $QUEUE_ARN
+</Queue>
+
+<SNS MintMaterial>
+    topic   ${sns_mint_material_arn}
+    region  us-east-1
+</SNS>
+
+<SNS MintIdentity>
+    topic   ${sns_mint_integration_arn}
+    region  us-east-1
+</SNS>
+CONF
+
+cat > "$COMPOSE_DIR/config/web/webapp.json" <<JSON
+{
+  "name": "WebApp",
+  "environment": "prod",
+  "reset_password_valid_hours": 5,
+  "work_dir": "/tmp/web_server",
+  "storage_handler": "S3",
+  "queue_handler": "SQS",
+  "cookie_Secure": true,
+  "cookie_SameSite": "Lax",
+  "revision": $NEW_REVISION,
+  "changelog": 1097,
+  "email_sender": "support@phenome-networks.com",
+  "region": "$REGION",
+  "phenome_server_url": "http://127.0.0.1",
+  "Model::PHN2": {
+    "connect_info": {
+      "dsn": "dbi:mysql:database=$DB_NAME;host=$DB_ENDPOINT;port=$DB_PORT",
+      "user": "$DB_USER",
+      "password": "$DB_PASSWORD",
+      "quote_names": 1,
+      "mysql_enable_utf8": 1,
+      "mysql_local_infile": 1
+    }
+  },
+  "S3": {
+    "auth_method": "V4",
+    "region": "$REGION"
+  },
+  "SQS": {
+    "region": "$REGION"
+  },
+  "Storage": {
+    "tiledb": {
+      "bucket_name": "$TILEDB_BUCKET",
+      "ws_root": "https://s3.$REGION.amazonaws.com",
+      "work_dir": "/tmp/web_server/genomics",
+      "region": "$REGION"
+    },
+    "uploads": {
+      "bucket_name": "$UPLOADS_BUCKET",
+      "ws_root": "https://s3.$REGION.amazonaws.com",
+      "work_dir": "/tmp/job_server/uploads",
+      "region": "$REGION"
+    },
+    "images": {
+      "bucket_name": "$IMAGES_BUCKET",
+      "ws_root": "https://s3.$REGION.amazonaws.com",
+      "work_dir": "/tmp/job_server/images",
+      "region": "$REGION"
+    },
+    "analyses": {
+      "bucket_name": "$ANALYSES_BUCKET",
+      "ws_root": "https://s3.$REGION.amazonaws.com",
+      "work_dir": "/tmp/job_server/analyses",
+      "region": "$REGION"
+    },
+    "reports": {
+      "bucket_name": "$IMAGES_BUCKET",
+      "ws_root": "https://s3.$REGION.amazonaws.com",
+      "work_dir": "/tmp/job_server/reports",
+      "region": "$REGION"
+    },
+    "documents": {
+      "bucket_name": "$DOCUMENTS_BUCKET",
+      "ws_root": "https://s3.$REGION.amazonaws.com",
+      "work_dir": "/tmp/job_server/documents",
+      "region": "$REGION"
+    }
+  },
+  "SNS": {
+    "MintMaterial": {
+      "topic": "${sns_mint_material_arn}",
+      "region": "us-east-1"
+    },
+    "MintIdentity": {
+      "topic": "${sns_mint_integration_arn}",
+      "region": "us-east-1"
+    }
+  }
+}
+JSON
+
+cat > "$COMPOSE_DIR/docker-compose.yml" <<COMPOSE
+version: '3.8'
+
+services:
+  python:
+    image: $ECR_REGISTRY/phenomeone-dev-phn-flask-ecr:$NEW_REVISION
+    container_name: python
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-bundle.crt
+    volumes:
+      - ./config/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt:ro
+      - ./config/web/webapp.conf:/srv/vhosts/unity/webapp.conf:ro
+      - ./config/web/webapp.conf:/opt/phn/unity/WebApp/webapp.conf:ro
+      - ./config/web/webapp_log.conf:/srv/vhosts/unity/webapp_log.conf:ro
+      - ./config/web/webapp_log.conf:/opt/phn/unity/WebApp/webapp_log.conf:ro
+      - ./config/web/webapp.json:/opt/phn/unity.R$NEW_REVISION/WebApp/lib/PHN/Python/webapp_conf.json:ro
+    networks:
+      - unity-net
+
+  web:
+    image: $ECR_REGISTRY/phenomeone-dev-phn-web-ecr:$NEW_REVISION
+    container_name: web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+      - HTTPS_CA_FILE=/etc/ssl/certs/ca-bundle.crt
+      - PERL_LWP_SSL_CA_FILE=/etc/ssl/certs/ca-bundle.crt
+      - PERL5LIB=/opt/phn/unity.R$${NEW_REVISION}/WebApp/lib:/srv/vhosts/unity/lib
+    volumes:
+      - ./config/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt:ro
+      - ./config/web/webapp.conf:/srv/vhosts/unity/webapp.conf:ro
+      - ./config/web/webapp.conf:/opt/phn/unity.R$${NEW_REVISION}/WebApp/webapp.conf:ro
+      - ./config/web/webapp_log.conf:/srv/vhosts/unity/webapp_log.conf:ro
+      - ./config/web/webapp_log.conf:/opt/phn/unity.R$${NEW_REVISION}/WebApp/webapp_log.conf:ro
+    command: sh -c 'socat TCP-LISTEN:5001,fork TCP:python:5001 & plackup -I /srv/vhosts/unity/lib -I /opt/phn/unity.R$${NEW_REVISION}/WebApp/lib -s Starman --host 0.0.0.0 --workers $WEB_WORKERS --port 80 /srv/vhosts/unity/script/webapp_plack.plk'
+    depends_on:
+      - python
+    networks:
+      - unity-net
+
+networks:
+  unity-net:
+    driver: bridge
+COMPOSE
+
+cd "$COMPOSE_DIR"
+docker-compose pull >> "$LOG" 2>&1
+docker-compose down >> "$LOG" 2>&1
+docker-compose up -d >> "$LOG" 2>&1
+
+echo "$NEW_REVISION" > "$REVISION_FILE"
+log "Successfully deployed revision $NEW_REVISION"
+ENDSCRIPT
+
+chmod +x /opt/unity-web/update_revision.sh
+
+# Set up cron to check for revision updates every minute
+echo "* * * * * /opt/unity-web/update_revision.sh web" | crontab -
+
+${elastic_agent}

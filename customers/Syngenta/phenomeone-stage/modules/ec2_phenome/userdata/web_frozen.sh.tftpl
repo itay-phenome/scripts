@@ -1,0 +1,156 @@
+#!/bin/bash
+set -e
+
+dnf update -y
+dnf install -y docker jq unzip zip socat
+
+DOCKER_COMPOSE_VERSION="2.24.0"
+curl -L "https://github.com/docker/compose/releases/download/v$DOCKER_COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+systemctl enable docker
+systemctl start docker
+
+APP_REGION="${region}"
+
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 590183981388.dkr.ecr.us-east-1.amazonaws.com
+
+mkdir -p /opt/unity-web/config/web
+
+cat > /opt/unity-web/config/web/webapp.conf <<EOF_WEBCONF
+name WebApp
+environment prod
+reset_password_valid_hours 5
+work_dir /tmp/web_server
+storage_handler S3
+queue_handler SQS
+cookie_Secure true
+cookie_SameSite Lax
+revision ${revision}
+changelog 1097
+email_sender support@phenome-networks.com
+region $APP_REGION
+
+<Model::PHN2>
+    <connect_info>
+        dsn               dbi:mysql:database=${db_name};host=${db_endpoint};port=${db_port}
+        user              ${db_user}
+        password          PLACEHOLDER
+        quote_names       1
+        mysql_enable_utf8 1
+        mysql_local_infile 1
+    </connect_info>
+</Model::PHN2>
+
+<Storage tiledb>
+    bucket_name ${tiledb_bucket_name}
+    ws_root https://s3-$APP_REGION.amazonaws.com
+    work_dir /tmp/web_server/genomics
+    region $APP_REGION
+</Storage>
+
+<Storage uploads>
+    bucket_name ${uploads_bucket_name}
+    ws_root https://s3-$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/uploads
+    region $APP_REGION
+</Storage>
+
+<Storage images>
+    bucket_name ${images_bucket_name}
+    ws_root https://s3-$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/images
+    region $APP_REGION
+</Storage>
+
+<Storage analyses>
+    bucket_name ${analyses_bucket_name}
+    ws_root https://s3-$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/analyses
+    region $APP_REGION
+</Storage>
+
+<Storage reports>
+    bucket_name ${reports_bucket_name}
+    ws_root https://s3-$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/reports
+    region $APP_REGION
+</Storage>
+
+<Storage documents>
+    bucket_name ${documents_bucket_name}
+    ws_root https://s3-$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/documents
+    region $APP_REGION
+</Storage>
+
+<Queue other>
+    queue_name arn:aws:sqs:$APP_REGION:590183981388:${sqs_queue_name}
+</Queue>
+
+<Queue assoc>
+    queue_name arn:aws:sqs:$APP_REGION:590183981388:${sqs_queue_name}
+</Queue>
+
+<Queue analysis>
+    queue_name arn:aws:sqs:$APP_REGION:590183981388:${sqs_queue_name}
+</Queue>
+EOF_WEBCONF
+
+cat > /opt/unity-web/config/web/webapp_log.conf <<EOF_LOGCONF
+log4perl.logger = DEBUG, Screen, Logfile
+log4perl.appender.Screen = Log::Log4perl::Appender::Screen
+log4perl.appender.Screen.stderr = 0
+log4perl.appender.Screen.layout = Log::Log4perl::Layout::PatternLayout
+log4perl.appender.Screen.layout.ConversionPattern = %p %P %C::%M-%L %d - %m%n
+log4perl.appender.Logfile = Log::Log4perl::Appender::File
+log4perl.appender.Logfile.filename = /var/log/webapp.log
+log4perl.appender.Logfile.layout = Log::Log4perl::Layout::PatternLayout
+log4perl.appender.Logfile.layout.ConversionPattern = %d %p %C::%M-%L , %m%n
+EOF_LOGCONF
+
+cat > /opt/unity-web/docker-compose.yml <<EOF_COMPOSE
+version: '3.8'
+
+services:
+  python:
+    image: 590183981388.dkr.ecr.us-east-1.amazonaws.com/phenomeone-dev-phn-flask-ecr:${revision}
+    container_name: python
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./config/web/webapp.conf:/srv/vhosts/unity/webapp.conf:ro
+      - ./config/web/webapp.conf:/opt/phn/unity/WebApp/webapp.conf:ro
+      - ./config/web/webapp_log.conf:/srv/vhosts/unity/webapp_log.conf:ro
+      - ./config/web/webapp_log.conf:/opt/phn/unity/WebApp/webapp_log.conf:ro
+    networks:
+      - unity-net
+
+  web:
+    image: 590183981388.dkr.ecr.us-east-1.amazonaws.com/phenomeone-dev-phn-web-ecr:${revision}
+    container_name: web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - PERL5LIB=/opt/phn/unity.R${revision}/WebApp/lib:/srv/vhosts/unity/lib
+    volumes:
+      - ./config/web/webapp.conf:/srv/vhosts/unity/webapp.conf:ro
+      - ./config/web/webapp.conf:/opt/phn/unity.R${revision}/WebApp/webapp.conf:ro
+      - ./config/web/webapp_log.conf:/srv/vhosts/unity/webapp_log.conf:ro
+      - ./config/web/webapp_log.conf:/opt/phn/unity.R${revision}/WebApp/webapp_log.conf:ro
+    command: sh -c 'socat TCP-LISTEN:5001,fork TCP:python:5001 & plackup -I /srv/vhosts/unity/lib -I /opt/phn/unity.R${revision}/WebApp/lib -s Starman --host 0.0.0.0 --workers 10 --port 80 /srv/vhosts/unity/script/webapp_plack.plk'
+    depends_on:
+      - python
+    networks:
+      - unity-net
+
+networks:
+  unity-net:
+    driver: bridge
+EOF_COMPOSE
+
+cd /opt/unity-web
+docker-compose up -d

@@ -1,0 +1,27 @@
+#!/bin/bash
+set -e
+
+dnf update -y
+dnf install -y mariadb105 mariadb105-common mariadb-connector-c mariadb-connector-c-config awscli jq
+
+dnf install -y amazon-ssm-agent
+systemctl enable amazon-ssm-agent
+systemctl start amazon-ssm-agent
+
+APP_REGION="${region}"
+export AWS_DEFAULT_REGION="$APP_REGION"
+
+SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${web_secret_name}" --query SecretString --output text --region "$APP_REGION")
+DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.db_password')
+
+cat > /root/.my.cnf <<EOF_MYCNF
+[client]
+host=${db_endpoint}
+port=${db_port}
+user=${db_user}
+password=$DB_PASSWORD
+database=${db_name}
+EOF_MYCNF
+
+mysql --version
+which mysql

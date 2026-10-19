@@ -1,0 +1,382 @@
+#!/bin/bash
+set -e
+
+dnf update -y
+dnf install -y docker jq unzip zip socat cronie
+systemctl enable crond
+systemctl start crond
+
+DOCKER_COMPOSE_VERSION="2.24.0"
+curl -L "https://github.com/docker/compose/releases/download/v$DOCKER_COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+systemctl enable docker
+systemctl start docker
+
+# Syngenta Root CA (needed for MINT integration TLS - mint.cloud.syngenta.org)
+mkdir -p /opt/unity-job/config/certs
+cat > /opt/unity-job/config/certs/SyngentaRootCA.crt <<'EOF_SYNGENTA_CA'
+-----BEGIN CERTIFICATE-----
+MIIFlzCCA3+gAwIBAgIQTp3URxWoUoJKs0zsWq3NJzANBgkqhkiG9w0BAQUFADBe
+MRMwEQYKCZImiZPyLGQBGRYDT1JHMRgwFgYKCZImiZPyLGQBGRYIU1lOR0VOVEEx
+FDASBgoJkiaJk/IsZAEZFgRFQU1FMRcwFQYDVQQDEw5TeW5nZW50YVJvb3RDQTAe
+Fw0xMDA5MDMxODA1NTFaFw0zNTA5MDMxODEyNDhaMF4xEzARBgoJkiaJk/IsZAEZ
+FgNPUkcxGDAWBgoJkiaJk/IsZAEZFghTWU5HRU5UQTEUMBIGCgmSJomT8ixkARkW
+BEVBTUUxFzAVBgNVBAMTDlN5bmdlbnRhUm9vdENBMIICIjANBgkqhkiG9w0BAQEF
+AAOCAg8AMIICCgKCAgEAo80FMlSka74wWk3zmw9/Rxre5samuap2kRSORiXF0Rhk
+EjYTQl5XIUWbuTlmLcb/16Rjt0lo8YpsaON74l1+88dPLi9038yPRCxL5o0ElOp+
+KEKZDsnGspig4vWeLlu95T8O6rxi+UvYL81upnvwivfYXnMxo24rS3/rky8fOfrx
+cP6cgNhL8Ys18hv/k9IxCoxX0Vxq35LklG69VyGLfKR2uaH5fWGsO+HZ1pF5zIZ+
+VU9dE60EkF4m0nbHrHsaPMlnhimdxfyydNdMIWKlVxtBWvQjm2BTcLEzIkHXcH7g
+gigFbbjZanfhll2Mj4jZ9gY7xCjHYl+MsrVSU+sgYbL0GWEJs4ht/cqj9kY3qPBs
+yLK32iRosOyZ3u1+hxj8Q8/OXFW1Lhik9wLldZUhHGMyYK/kVTk3DHMB/5GRkCuh
+RPoigFTZqAmYXMyvbTu7bCOrIOqdMToCWvxc+BHsfNv4Q/HFUMLihr4NLAmxLuHO
+4YOvuksCZ4VsZU73Zt/u1I2mvDOGNH2y2+KS5ybj4dIoVcavu+3TE3NyQUm6G0P+
+woCLgaL+AA19K7lTbpBwvxTnHFH0onifXLIgjWJK84cEb2PFNIm208NhvHh8WUrL
+FUGDTRIoDvb9Cl9erey4bADytXE9HxQZervK+UZLI8o7Xi83VXFse/6jC6nXWdEC
+AwEAAaNRME8wCwYDVR0PBAQDAgGGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYE
+FMewsdfkHpEcUup3GISP4tJoJf+HMBAGCSsGAQQBgjcVAQQDAgEAMA0GCSqGSIb3
+DQEBBQUAA4ICAQAvuoC29eAxQ5otqNhsZoy8uxIqbM/gaRI9uQsW4F4D/jCVkYGt
+s4zwil5w27QxA8TrqLkJf/dBcPRJvqViIvxAGIMUkWxwjvd9s9dmWqbrKsA4NdiH
+1ohTmUzpEOfMLHuQ3mXF8mSO/L8EyXN1kX37VCBqGG3Yk9m+F1kL5VCChXz9jFIF
+oRrePDRAb/qQEe6xnpPGMB7EjV/zeimYkZCV9GQ4rpHwhv0ETMlij3sGhn26EnkA
+S8wP3cURXvrI8bsAGXOsVQXQidBAeegB9yjIlVIRN3RujY1BBVg7vH9R6vPzGQXC
+icaRBeUuy1yjwSIScJ4dIVSi06GBofr/FWZeLqJdt0I8hdwYehLBwLX0vAuh9Kom
+1DhzNL1C53hjjHGtrlMtOhXUG3m40lYcPQQwQtqFqRozBx7GaRrMLJ2i2tcG8Jl2
+xxtHHxK4eH2drzIEDeaRFU93OWy/GlXUAtANcZPD7MIXzhwWEMASPBfMUmpBRc0q
+XGgxZVBPCS1iOwzke1AcBoCP/6ZJLhwQ52cFFHfqqhY7ri2aIiVdHXg+mbCMY9GZ
+kV+W6Y/jZpV+3cAmPauCe6j0c8GzZaAsuotZ+wR/XFXgj9Ekq9ASWLGs63fl1p6/
+VpZFjd2hYdJEGF2DmZT+4Upl6CPHqUXnO2BIMM34n4KKsvivL2v1/CbZPQ==
+-----END CERTIFICATE-----
+EOF_SYNGENTA_CA
+cp /opt/unity-job/config/certs/SyngentaRootCA.crt /etc/pki/ca-trust/source/anchors/SyngentaRootCA.crt
+update-ca-trust extract
+cp /etc/pki/tls/certs/ca-bundle.crt /opt/unity-job/config/certs/ca-bundle.crt
+
+APP_REGION="${region}"
+
+# Fetch credentials from Secrets Manager
+SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${web_secret_name}" --region "$APP_REGION" --query SecretString --output text)
+DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.db_password')
+
+# Get current revision from SSM
+REVISION=$(aws ssm get-parameter --name "${ssm_param_path}" --region "$APP_REGION" --query 'Parameter.Value' --output text)
+
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 590183981388.dkr.ecr.us-east-1.amazonaws.com
+
+mkdir -p /opt/unity-job/config/job
+
+cat > /opt/unity-job/config/job/job.conf <<EOF_JOBCONF
+max_procs 3
+max_time 3600000
+is_persistent 1
+idle_time 300
+work_dir /tmp/job_server
+storage_handler S3
+queue_handler SQS
+revision $REVISION
+changelog 1097
+email_sender support@phenome-networks.com
+region $APP_REGION
+
+<Schema::PHN2>
+    <connect_info>
+        dsn               dbi:mysql:database=${db_name};host=${db_endpoint};port=${db_port}
+        user              ${db_user}
+        password          $DB_PASSWORD
+        quote_names       1
+        mysql_enable_utf8 1
+    </connect_info>
+    odbc_id ${db_name}
+</Schema::PHN2>
+
+<S3>
+    auth_method V4
+    region $APP_REGION
+    <users>
+        auth_method V2
+    </users>
+</S3>
+
+<Storage uploads>
+    bucket_name ${uploads_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/uploads
+    region $APP_REGION
+</Storage>
+
+<Storage images>
+    bucket_name ${images_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/images
+    region $APP_REGION
+</Storage>
+
+<Storage analyses>
+    bucket_name ${analyses_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/analyses
+    region $APP_REGION
+</Storage>
+
+<Storage reports>
+    bucket_name ${images_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/reports
+    region $APP_REGION
+</Storage>
+
+<Storage documents>
+    bucket_name ${documents_bucket_name}
+    ws_root https://s3.$APP_REGION.amazonaws.com
+    work_dir /tmp/job_server/documents
+    region $APP_REGION
+</Storage>
+
+<SQS>
+    region $APP_REGION
+</SQS>
+
+<Queue>
+    queue_name arn:aws:sqs:$APP_REGION:590183981388:${sqs_queue_name}
+</Queue>
+
+<Queue>
+    <mint_material_queue>
+        queue_name     arn:aws:sqs:us-east-1:590183981388:phenomeone-development-mint-material-sqs.fifo
+        region         us-east-1
+        user_name      Yaniv.Semel@syngenta.com
+        handler_class  PHN::Helpers::SYN::Mint
+        handler_method receieve_message_from_mm
+    </mint_material_queue>
+
+    <mint_identity_queue>
+        queue_name     arn:aws:sqs:us-east-1:590183981388:phenomeone-development-mint-integration-sqs.fifo
+        region         us-east-1
+        user_name      Yaniv.Semel@syngenta.com
+        handler_class  PHN::Helpers::SYN::Mint
+        handler_method receieve_message_from_mi
+    </mint_identity_queue>
+</Queue>
+
+<SNS MintMaterial>
+    topic   arn:aws:sns:us-east-1:590183981388:phenomeone-development-mint-material-sns.fifo
+    region  us-east-1
+</SNS>
+
+<SNS MintIdentity>
+    topic   arn:aws:sns:us-east-1:590183981388:phenomeone-development-mint-integration-sns.fifo
+    region  us-east-1
+</SNS>
+EOF_JOBCONF
+
+cat > /opt/unity-job/config/job/job_log.conf <<EOF_JOBLOG
+log4perl.logger = DEBUG, Screen, Logfile
+log4perl.appender.Screen = Log::Log4perl::Appender::Screen
+log4perl.appender.Screen.stderr = 0
+log4perl.appender.Screen.layout = Log::Log4perl::Layout::PatternLayout
+log4perl.appender.Screen.layout.ConversionPattern = %d %p %C::%M-%L , %m%n
+log4perl.appender.Logfile = Log::Log4perl::Appender::File
+log4perl.appender.Logfile.filename = /var/log/job_server.log
+log4perl.appender.Logfile.layout = Log::Log4perl::Layout::PatternLayout
+log4perl.appender.Logfile.layout.ConversionPattern = %d %p %C::%M-%L , %m%n
+EOF_JOBLOG
+
+cat > /opt/unity-job/config/job/odbcinst.ini <<EOF_ODBCINST
+[MySQL]
+Driver=/usr/lib/x86_64-linux-gnu/odbc/libmaodbc.so
+UsageCount=1
+EOF_ODBCINST
+
+cat > /opt/unity-job/config/job/odbc.ini <<EOF_ODBCINI
+[${db_name}]
+Driver          = MySQL
+Database        = ${db_name}
+Server          = ${db_endpoint}
+User            = ${db_user}
+Password        = $DB_PASSWORD
+Port            = ${db_port}
+Option          = 65536
+EOF_ODBCINI
+
+cat > /opt/unity-job/config/job/liquibase.properties <<EOF_LB
+changeLogFile=changelog.sql
+url=jdbc:mysql://${db_endpoint}:${db_port}/${db_name}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+username=${db_user}
+password=$DB_PASSWORD
+EOF_LB
+
+cat > /opt/unity-job/config/job/my.cnf <<EOF_MYCNF
+[client]
+host=${db_endpoint}
+port=${db_port}
+user=${db_user}
+password=$DB_PASSWORD
+database=${db_name}
+EOF_MYCNF
+
+mkdir -p /opt/unity-job/config/mint
+
+cat > /opt/unity-job/config/mint/watchdog.sh << 'EOF_WATCHDOG'
+#!/bin/sh
+SCRIPT=/opt/phn/unity/WebApp/script/webapp_queue_listener.pl
+QUEUES="mint_material_queue mint_identity_queue"
+
+for Q in $QUEUES; do
+  perl $SCRIPT $Q &
+done
+
+while true; do
+  sleep 30
+  for Q in $QUEUES; do
+    if ! pgrep -f "webapp_queue_listener.pl $Q" > /dev/null; then
+      echo "$(date) restarting $Q"
+      perl $SCRIPT $Q &
+    fi
+  done
+done
+EOF_WATCHDOG
+
+chmod +x /opt/unity-job/config/mint/watchdog.sh
+
+cat > /opt/unity-job/docker-compose.yml <<EOF_COMPOSE
+version: '3.8'
+
+services:
+  job:
+    image: 590183981388.dkr.ecr.us-east-1.amazonaws.com/phenomeone-dev-phn-job-ecr:$REVISION
+    container_name: job
+    restart: unless-stopped
+    environment:
+      - AWS_DEFAULT_REGION=$APP_REGION
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+    volumes:
+      - ./config/job/job.conf:/opt/phn/unity/JobServer/job_server.conf:ro
+      - ./config/job/job_log.conf:/opt/phn/unity/JobServer/job_server_log.conf:ro
+      - ./config/job/odbcinst.ini:/etc/odbcinst.ini:ro
+      - ./config/job/odbc.ini:/etc/odbc.ini:ro
+      - ./config/job/liquibase.properties:/home/ubuntu/files/liquibase.properties:ro
+      - ./config/job/my.cnf:/root/.my.cnf:ro
+      - ./config/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt:ro
+    networks:
+      - unity-net
+
+  mint-listeners:
+    image: 590183981388.dkr.ecr.us-east-1.amazonaws.com/phenomeone-dev-phn-job-ecr:$REVISION
+    container_name: mint-listeners
+    command: ["/bin/sh", "/opt/phn/mint/watchdog.sh"]
+    restart: unless-stopped
+    environment:
+      - AWS_DEFAULT_REGION=$APP_REGION
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+      - HTTPS_CA_FILE=/etc/ssl/certs/ca-bundle.crt
+    volumes:
+      - ./config/job/job.conf:/opt/phn/unity/JobServer/job_server.conf:ro
+      - ./config/mint/watchdog.sh:/opt/phn/mint/watchdog.sh:ro
+      - ./config/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt:ro
+    networks:
+      - unity-net
+
+networks:
+  unity-net:
+    driver: bridge
+EOF_COMPOSE
+
+cd /opt/unity-job
+docker-compose up -d
+
+echo "$REVISION" > /opt/unity-job/.current_revision
+
+cat > /opt/unity-job/update_revision.sh <<'ENDSCRIPT'
+#!/bin/bash
+set -euo pipefail
+
+REGION="${region}"
+SSM_PARAM_NAME="${ssm_param_path}"
+ACCOUNT_ID="590183981388"
+ECR_REGISTRY="$ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com"
+COMPOSE_DIR="/opt/unity-job"
+REVISION_FILE="$COMPOSE_DIR/.current_revision"
+LOG="/var/log/update_revision_job.log"
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') [job] $*" >> "$LOG"; }
+
+NEW_REVISION=$(aws ssm get-parameter --name "$SSM_PARAM_NAME" --region "$REGION" --query 'Parameter.Value' --output text 2>>"$LOG") || {
+  log "ERROR: failed to read SSM parameter"
+  exit 1
+}
+
+CURRENT_REVISION=""
+if [ -f "$REVISION_FILE" ]; then
+  CURRENT_REVISION=$(cat "$REVISION_FILE")
+fi
+
+if [ "$NEW_REVISION" = "$CURRENT_REVISION" ]; then
+  exit 0
+fi
+
+log "Revision changed: $CURRENT_REVISION -> $NEW_REVISION. Redeploying..."
+
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$ECR_REGISTRY" >> "$LOG" 2>&1
+
+
+cat > "$COMPOSE_DIR/docker-compose.yml" <<COMPOSE
+version: '3.8'
+
+services:
+  job:
+    image: $ECR_REGISTRY/phenomeone-dev-phn-job-ecr:$NEW_REVISION
+    container_name: job
+    restart: unless-stopped
+    environment:
+      - AWS_DEFAULT_REGION=$REGION
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+    volumes:
+      - ./config/job/job.conf:/opt/phn/unity/JobServer/job_server.conf:ro
+      - ./config/job/job_log.conf:/opt/phn/unity/JobServer/job_server_log.conf:ro
+      - ./config/job/odbcinst.ini:/etc/odbcinst.ini:ro
+      - ./config/job/odbc.ini:/etc/odbc.ini:ro
+      - ./config/job/liquibase.properties:/home/ubuntu/files/liquibase.properties:ro
+      - ./config/job/my.cnf:/root/.my.cnf:ro
+      - ./config/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt:ro
+    networks:
+      - unity-net
+
+  mint-listeners:
+    image: $ECR_REGISTRY/phenomeone-dev-phn-job-ecr:$NEW_REVISION
+    container_name: mint-listeners
+    command: ["/bin/sh", "/opt/phn/mint/watchdog.sh"]
+    restart: unless-stopped
+    environment:
+      - AWS_DEFAULT_REGION=$REGION
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+      - HTTPS_CA_FILE=/etc/ssl/certs/ca-bundle.crt
+    volumes:
+      - ./config/job/job.conf:/opt/phn/unity/JobServer/job_server.conf:ro
+      - ./config/mint/watchdog.sh:/opt/phn/mint/watchdog.sh:ro
+      - ./config/certs/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt:ro
+    networks:
+      - unity-net
+
+networks:
+  unity-net:
+    driver: bridge
+COMPOSE
+
+sed -i "s/^revision .*/revision $NEW_REVISION/" "$COMPOSE_DIR/config/job/job.conf"
+
+cd "$COMPOSE_DIR"
+docker-compose pull >> "$LOG" 2>&1
+docker-compose down >> "$LOG" 2>&1
+docker-compose up -d >> "$LOG" 2>&1
+
+echo "$NEW_REVISION" > "$REVISION_FILE"
+log "Successfully deployed revision $NEW_REVISION"
+ENDSCRIPT
+
+chmod +x /opt/unity-job/update_revision.sh
+
+echo "* * * * * /opt/unity-job/update_revision.sh" | crontab -
+
+${elastic_agent}
