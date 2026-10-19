@@ -628,7 +628,7 @@ aws s3 cp s3://phenome-devops-files/userdata/last.rds /home/ubuntu/ --region eu-
 export REVISION="15590"
 export MYSQL_HOST="enza-test.c2lwxovefzco.eu-west-1.rds.amazonaws.com"
 export MYSQL_USER="phenome"
-export MYSQL_PASS="XSUVePuFroQVdcvVWwpK"
+export MYSQL_PASS="YOUR_DB_PASSWORD_HERE"
 export BUCKET_REGION="eu-west-1"
 export BUCKET_UPLOADS="enza-test-upload"
 export BUCKET_IMAGES="enza-test-images"

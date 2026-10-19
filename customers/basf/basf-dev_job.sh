@@ -633,7 +633,7 @@ aws s3 cp s3://phenome-devops-files/userdata/last.rds /home/ubuntu/ --region eu-
 export REVISION="16037"
 export MYSQL_HOST="basf-rds-dev-master.cfmy88og23jj.eu-central-1.rds.amazonaws.com"
 export MYSQL_USER="root"
-export MYSQL_PASS="fCK_MiV!84wP45et25a"
+export MYSQL_PASS="YOUR_DB_PASSWORD_HERE"
 export BUCKET_REGION="eu-central-1"
 export BUCKET_UPLOADS="phen-basf-dev-uploads"
 export BUCKET_IMAGES="phen-basf-dev-images"

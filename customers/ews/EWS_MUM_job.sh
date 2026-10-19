@@ -580,7 +580,7 @@ aws s3 cp s3://phenome-devops-files/userdata/last.rds /home/ubuntu/ --region eu-
 export REVISION="14689"
 export MYSQL_HOST="ews-mum-rds.cf7gghvlnnan.ap-south-1.rds.amazonaws.com"
 export MYSQL_USER="phenome"
-export MYSQL_PASS="QfVKXqBID6v3Uyqlo1mb!"
+export MYSQL_PASS="YOUR_DB_PASSWORD_HERE"
 export BUCKET_REGION="ap-south-1"
 export BUCKET_UPLOADS="phenome-ews-files-upload"
 export BUCKET_IMAGES="phenome-ews-files-image"

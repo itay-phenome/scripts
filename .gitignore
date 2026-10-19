@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Secret-scrubbing mapping files (contain real secrets)
+replacements.txt
