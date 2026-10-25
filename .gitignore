@@ -219,3 +219,8 @@ __marimo__/
 
 # Secret-scrubbing mapping files (contain real secrets)
 replacements.txt
+
+# n8n raw exports can contain plaintext API credentials (Telegram, Monday, etc.)
+/ClaudeN8N/workflows_raw.json
+/ClaudeN8N/credentials*.json
+/ClaudeN8N/*_credentials*.json
